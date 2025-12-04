@@ -2,11 +2,11 @@
 
 **Last Updated:** December 4, 2025
 
-## Current Phase: Phase 4 - Editor UI Skeleton ✅ COMPLETE
+## Current Phase: Phase 5 - Widget Palette ✅ COMPLETE
 
 ### Build Status
 - ✅ **Compiles successfully** (`cargo build` passes)
-- ✅ **All tests pass** (34 tests)
+- ✅ **All tests pass** (39 tests)
 - ✅ **Application launches** without panics
 - ✅ **Logging system active** (tracing-based)
 - ⚠️ Dead code warnings (expected - scaffolding for future phases)
@@ -101,10 +101,6 @@ src/
 
 ## Upcoming Work
 
-### Phase 5: Widget Palette Improvements
-- [ ] Drag-and-drop from palette to canvas
-- [ ] Insert widget into selected container
-
 ### Phase 6: Code Generation Improvements
 - [x] Basic code generation implemented
 - [ ] Real-time code preview panel
@@ -113,6 +109,36 @@ src/
 - [ ] Error handling improvements
 - [ ] Performance optimization
 - [ ] Keyboard shortcuts refinement
+
+---
+
+## Phase 5 Completed Features
+
+### 5.1 Container Management Methods
+| Method | Status | Notes |
+|--------|--------|-------|
+| `is_container(id)` | ✅ | Check if node can accept children |
+| `add_child_to_root(node)` | ✅ | Add widget to root container |
+| `add_child_to_node(parent_id, node)` | ✅ | Add widget to specific container |
+| `node_is_container(node)` | ✅ | Helper for container type check |
+
+### 5.2 Click-to-Add Logic
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Add to selected container | ✅ | Uses `is_container()` check |
+| Fallback to root | ✅ | If no selection or non-container selected |
+| Auto-select new widget | ✅ | Newly added widget becomes selected |
+| Status message feedback | ✅ | Shows success/failure message |
+| History integration | ✅ | Undo/redo works for add operations |
+
+### 5.3 Tests Added
+| Test | Description |
+|------|-------------|
+| `test_project_is_container` | Container type detection |
+| `test_project_add_child_to_root` | Adding widgets to root |
+| `test_project_add_child_to_node` | Adding widgets to nested containers |
+| `test_project_add_child_to_non_container` | Rejection for non-containers |
+| `test_project_add_child_to_nonexistent_node` | Handling missing nodes |
 
 ---
 

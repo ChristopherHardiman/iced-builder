@@ -252,25 +252,47 @@ impl App {
 
                     // Create the new node
                     let new_node = create_node_for_kind(kind);
+                    let new_node_id = new_node.id;
                     tracing::debug!(
                         target: "iced_builder::app::tree", 
                         node_id = %new_node.id, 
                         "Created new node"
                     );
 
-                    // Add to root (or selected container)
-                    if let Some(children) = project.layout.root.children_mut() {
-                        children.push(new_node);
+                    // Try to add to selected container, otherwise add to root
+                    let added = if let Some(selected_id) = project.selected_id {
+                        if project.is_container(selected_id) {
+                            tracing::debug!(
+                                target: "iced_builder::app::tree",
+                                parent_id = %selected_id,
+                                "Adding to selected container"
+                            );
+                            project.add_child_to_node(selected_id, new_node)
+                        } else {
+                            tracing::debug!(
+                                target: "iced_builder::app::tree",
+                                "Selected node is not a container, adding to root"
+                            );
+                            project.add_child_to_root(new_node)
+                        }
+                    } else {
                         tracing::debug!(
                             target: "iced_builder::app::tree",
-                            child_count = children.len(),
-                            "Added to root children"
+                            "No selection, adding to root"
                         );
-                    }
+                        project.add_child_to_root(new_node)
+                    };
 
-                    project.rebuild_index();
-                    project.mark_dirty();
-                    self.status_message = Some(format!("Added {}", kind.name()));
+                    if added {
+                        project.mark_dirty();
+                        // Select the newly added node
+                        project.selected_id = Some(new_node_id);
+                        self.status_message = Some(format!("Added {}", kind.name()));
+                    } else {
+                        // Undo the history push if add failed
+                        let _ = project.history.undo(project.layout.clone());
+                        self.status_message = Some("Cannot add widget here".to_string());
+                    }
                 }
                 Task::none()
             }

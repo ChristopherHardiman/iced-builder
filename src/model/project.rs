@@ -620,6 +620,74 @@ impl Project {
         }
         false
     }
+
+    /// Add a child node to a container by ComponentId.
+    /// Returns true if the child was successfully added.
+    /// Returns false if the target node is not a container or doesn't exist.
+    pub fn add_child_to_node(&mut self, parent_id: ComponentId, new_child: LayoutNode) -> bool {
+        if let Some(parent) = self.find_node_mut(parent_id) {
+            if Self::add_child_to(parent, new_child) {
+                self.rebuild_index();
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Add a child to the root node.
+    pub fn add_child_to_root(&mut self, new_child: LayoutNode) -> bool {
+        if Self::add_child_to(&mut self.layout.root, new_child) {
+            self.rebuild_index();
+            return true;
+        }
+        false
+    }
+
+    /// Check if a node is a container that can accept children.
+    pub fn is_container(&self, id: ComponentId) -> bool {
+        if let Some(node) = self.find_node(id) {
+            Self::node_is_container(node)
+        } else {
+            false
+        }
+    }
+
+    /// Check if a node can accept children.
+    fn node_is_container(node: &LayoutNode) -> bool {
+        match &node.widget {
+            crate::model::layout::WidgetType::Column { .. }
+            | crate::model::layout::WidgetType::Row { .. }
+            | crate::model::layout::WidgetType::Stack { .. } => true,
+            crate::model::layout::WidgetType::Container { child, .. }
+            | crate::model::layout::WidgetType::Scrollable { child, .. } => {
+                // Single-child containers can only accept if empty
+                child.is_none()
+            }
+            _ => false,
+        }
+    }
+
+    /// Add a child to a specific node.
+    fn add_child_to(node: &mut LayoutNode, new_child: LayoutNode) -> bool {
+        match &mut node.widget {
+            crate::model::layout::WidgetType::Column { children, .. }
+            | crate::model::layout::WidgetType::Row { children, .. }
+            | crate::model::layout::WidgetType::Stack { children, .. } => {
+                children.push(new_child);
+                true
+            }
+            crate::model::layout::WidgetType::Container { child, .. }
+            | crate::model::layout::WidgetType::Scrollable { child, .. } => {
+                if child.is_none() {
+                    *child = Some(Box::new(new_child));
+                    true
+                } else {
+                    false // Already has a child
+                }
+            }
+            _ => false, // Not a container
+        }
+    }
 }
 
 /// Project templates.
@@ -636,6 +704,7 @@ pub enum Template {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::layout::{ButtonAttrs, ContainerAttrs, TextAttrs, WidgetType};
     use tempfile::tempdir;
 
     #[test]
@@ -855,5 +924,126 @@ mod tests {
         
         // The child should be findable again
         assert!(project.find_node(child_id).is_some());
+    }
+
+    #[test]
+    fn test_project_is_container() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        let mut project = Project::create(project_dir, Some(Template::Form)).unwrap();
+        
+        // Root should be a container (Column)
+        let root_id = project.layout.root.id;
+        assert!(project.is_container(root_id));
+        
+        // Add a non-container widget (Button) to root
+        let button = LayoutNode::new(WidgetType::Button {
+            label: "Test".to_string(),
+            message_stub: "TestMsg".to_string(),
+            attrs: ButtonAttrs::default(),
+        });
+        let button_id = button.id;
+        assert!(project.add_child_to_root(button));
+        
+        // Button should not be a container
+        assert!(!project.is_container(button_id));
+    }
+
+    #[test]
+    fn test_project_add_child_to_root() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        let mut project = Project::create(project_dir, None).unwrap();
+        
+        let initial_count = project.layout.root.children().unwrap().len();
+        
+        // Add a text widget to root
+        let text = LayoutNode::new(WidgetType::Text {
+            content: "Hello".to_string(),
+            attrs: TextAttrs::default(),
+        });
+        let text_id = text.id;
+        assert!(project.add_child_to_root(text));
+        
+        // Verify it was added
+        assert_eq!(
+            project.layout.root.children().unwrap().len(),
+            initial_count + 1
+        );
+        
+        // Verify we can find it
+        assert!(project.find_node(text_id).is_some());
+    }
+
+    #[test]
+    fn test_project_add_child_to_node() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        let mut project = Project::create(project_dir, None).unwrap();
+        
+        // Add a Row container first
+        let row = LayoutNode::new(WidgetType::Row {
+            children: Vec::new(),
+            attrs: ContainerAttrs::default(),
+        });
+        let row_id = row.id;
+        assert!(project.add_child_to_root(row));
+        
+        // Now add a button to the Row
+        let button = LayoutNode::new(WidgetType::Button {
+            label: "Click".to_string(),
+            message_stub: "Clicked".to_string(),
+            attrs: ButtonAttrs::default(),
+        });
+        let button_id = button.id;
+        assert!(project.add_child_to_node(row_id, button));
+        
+        // Verify button was added to the row
+        let row_node = project.find_node(row_id).expect("Row should exist");
+        let row_children = row_node.children().expect("Row should have children");
+        assert!(row_children.iter().any(|c| c.id == button_id));
+    }
+
+    #[test]
+    fn test_project_add_child_to_non_container() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        let mut project = Project::create(project_dir, None).unwrap();
+        
+        // Add a button first (non-container)
+        let button = LayoutNode::new(WidgetType::Button {
+            label: "Test".to_string(),
+            message_stub: "TestMsg".to_string(),
+            attrs: ButtonAttrs::default(),
+        });
+        let button_id = button.id;
+        assert!(project.add_child_to_root(button));
+        
+        // Try to add a child to the button - should fail
+        let text = LayoutNode::new(WidgetType::Text {
+            content: "Hello".to_string(),
+            attrs: TextAttrs::default(),
+        });
+        assert!(!project.add_child_to_node(button_id, text));
+    }
+
+    #[test]
+    fn test_project_add_child_to_nonexistent_node() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        let mut project = Project::create(project_dir, None).unwrap();
+        
+        // Try to add to a non-existent node
+        let fake_id = crate::model::layout::ComponentId::new();
+        let text = LayoutNode::new(WidgetType::Text {
+            content: "Hello".to_string(),
+            attrs: TextAttrs::default(),
+        });
+        assert!(!project.add_child_to_node(fake_id, text));
     }
 }
