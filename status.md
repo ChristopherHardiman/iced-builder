@@ -2,11 +2,11 @@
 
 **Last Updated:** December 4, 2025
 
-## Current Phase: Phase 1 - Data Model & Validation ✅ COMPLETE
+## Current Phase: Phase 2 - Project & Configuration ✅ COMPLETE
 
 ### Build Status
 - ✅ **Compiles successfully** (`cargo build` passes)
-- ✅ **All tests pass** (23 tests)
+- ✅ **All tests pass** (30 tests)
 - ✅ **Application launches** without panics
 - ✅ **Logging system active** (tracing-based)
 - ⚠️ Dead code warnings (expected - scaffolding for future phases)
@@ -101,26 +101,64 @@ src/
 
 ## Upcoming Work
 
-### Phase 2: Project & Configuration
-- [ ] Functional project loading from iced_builder.toml
-- [ ] Open/Save layout files via file dialogs
-- [ ] Node selection and index tracking
+### Phase 3: Undo/Redo (History)
+- [x] History struct implemented (Phase 0)
+- [ ] Full integration with all mutations
 
-### Phase 3: Core Editor UI
+### Phase 4: Editor UI – Skeleton
 - [ ] Widget rendering on canvas with real data
 - [ ] Click-to-select with visual feedback
 - [ ] Property inspector displays selected widget properties
 - [ ] Drag-and-drop from palette to canvas
 
-### Phase 4: Code Generation
+### Phase 5: Code Generation Improvements
+- [x] Basic code generation implemented
 - [ ] Real-time code preview panel
-- [ ] Export to .rs file via rfd
-- [ ] rustfmt integration
 
-### Phase 5: Polish
+### Phase 6: Polish
 - [ ] Error handling improvements
 - [ ] Performance optimization
 - [ ] Keyboard shortcuts refinement
+
+---
+
+## Phase 2 Completed Features
+
+### 2.1 Config File (`iced_builder.toml`)
+| Field | Status | Description |
+|-------|--------|-------------|
+| `project_root` | ✅ | Optional path to project root |
+| `output_file` | ✅ | Path for generated Rust code |
+| `message_type` | ✅ | Fully-qualified message type |
+| `state_type` | ✅ | Fully-qualified state type |
+| `layout_files` | ✅ | List of layout files to load |
+| `format_output` | ✅ | Whether to run rustfmt |
+
+### 2.2 Project State
+| Feature | Status | Notes |
+|---------|--------|-------|
+| `Project::new()` | ✅ | Create project with default layout |
+| `Project::create()` | ✅ | Create new project in directory |
+| `Project::open()` | ✅ | Open existing project |
+| `Project::save()` | ✅ | Save config and layout |
+| `Project::export()` | ✅ | Generate and write Rust code |
+| `find_node()` | ✅ | O(1) lookup by ComponentId |
+| `find_node_mut()` | ✅ | Mutable node lookup |
+| `rebuild_index()` | ✅ | Rebuild NodeIndex after changes |
+
+### 2.3 File Dialogs
+| Feature | Status | Notes |
+|---------|--------|-------|
+| New Project dialog | ✅ | Folder picker via rfd |
+| Open Project dialog | ✅ | Folder picker via rfd |
+| Async file operations | ✅ | Using Iced Task system |
+
+### 2.4 Project Templates
+| Template | Status | Description |
+|----------|--------|-------------|
+| Blank | ✅ | Empty layout with root Column |
+| Form | ✅ | Title, inputs, submit button |
+| Dashboard | ✅ | Header row, two-column content |
 
 ---
 
@@ -184,3 +222,6 @@ src/
 | thiserror | 2 | Error types |
 | anyhow | 1 | Error handling |
 | regex | 1 | Identifier validation |
+| tracing | 0.1 | Structured logging |
+| tracing-subscriber | 0.3 | Log output |
+| tempfile | 3 | Testing (dev) |

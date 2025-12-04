@@ -1,6 +1,6 @@
 [package]
 name = "iced_builder"
-version = "0.0.2"
+version = "0.0.4"
 edition = "2021"
 description = "A visual GUI builder for Iced applications"
 license = "MIT"
@@ -40,3 +40,6 @@ lto = true
 codegen-units = 1
 strip = true
 opt-level = "z"
+
+[dev-dependencies]
+tempfile = "3.23.0"

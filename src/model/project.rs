@@ -3,9 +3,10 @@
 //! Handles loading/saving project configuration from `iced_builder.toml`
 //! and managing the overall project state.
 
+use crate::io::{config, layout_file};
 use crate::model::{layout::NodeIndex, ComponentId, History, LayoutDocument, LayoutNode};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 /// Errors that can occur when working with projects.
@@ -146,6 +147,328 @@ impl Project {
         }
     }
 
+    /// Open an existing project from a directory.
+    ///
+    /// Looks for `iced_builder.toml` in the given directory, loads configuration,
+    /// then loads the layout file(s) specified in the config.
+    pub fn open(project_dir: &Path) -> Result<Self, ProjectError> {
+        tracing::info!(target: "iced_builder::io", path = %project_dir.display(), "Opening project");
+
+        // Find and load config file
+        let config_path = config::find_config(project_dir)
+            .ok_or_else(|| ProjectError::ConfigNotFound(project_dir.join("iced_builder.toml")))?;
+        
+        let config = config::load_config(&config_path)
+            .map_err(|e| match e {
+                config::ConfigError::ReadError(io) => ProjectError::ConfigRead(io),
+                config::ConfigError::ParseError(p) => ProjectError::ConfigParse(p),
+                config::ConfigError::NotFound(s) => ProjectError::ConfigNotFound(PathBuf::from(s)),
+                config::ConfigError::SerializeError(_) => {
+                    ProjectError::LayoutParse("Config serialize error".to_string())
+                }
+            })?;
+
+        tracing::debug!(target: "iced_builder::io", ?config, "Config loaded");
+
+        // Load layout file
+        let layout = Self::load_layout_for_project(project_dir, &config)?;
+        let node_index = crate::model::layout::build_node_index(&layout.root);
+
+        tracing::info!(
+            target: "iced_builder::io", 
+            name = %layout.name, 
+            node_count = node_index.len(),
+            "Project opened successfully"
+        );
+
+        Ok(Self {
+            path: project_dir.to_path_buf(),
+            config,
+            layout,
+            node_index,
+            selected_id: None,
+            history: History::new(),
+            dirty: false,
+        })
+    }
+
+    /// Load the layout file for a project.
+    fn load_layout_for_project(project_dir: &Path, config: &ProjectConfig) -> Result<LayoutDocument, ProjectError> {
+        // Try layout files from config first
+        if !config.layout_files.is_empty() {
+            for layout_path in &config.layout_files {
+                let full_path = project_dir.join(layout_path);
+                if full_path.exists() {
+                    tracing::debug!(target: "iced_builder::io", path = %full_path.display(), "Loading layout from config");
+                    return layout_file::load_layout(&full_path)
+                        .map_err(|e| ProjectError::LayoutParse(e.to_string()));
+                }
+            }
+        }
+
+        // Fall back to default layout.ron
+        let default_path = project_dir.join("layout.ron");
+        if default_path.exists() {
+            tracing::debug!(target: "iced_builder::io", path = %default_path.display(), "Loading default layout.ron");
+            return layout_file::load_layout(&default_path)
+                .map_err(|e| ProjectError::LayoutParse(e.to_string()));
+        }
+
+        // Try layout.json as alternative
+        let json_path = project_dir.join("layout.json");
+        if json_path.exists() {
+            tracing::debug!(target: "iced_builder::io", path = %json_path.display(), "Loading layout.json");
+            return layout_file::load_layout(&json_path)
+                .map_err(|e| ProjectError::LayoutParse(e.to_string()));
+        }
+
+        // No layout found - return error
+        Err(ProjectError::LayoutNotFound(default_path))
+    }
+
+    /// Save the project to disk.
+    ///
+    /// Saves both the configuration and the layout file.
+    pub fn save(&mut self) -> Result<(), ProjectError> {
+        tracing::info!(target: "iced_builder::io", path = %self.path.display(), "Saving project");
+
+        // Save config
+        let config_path = self.path.join("iced_builder.toml");
+        config::save_config(&config_path, &self.config)
+            .map_err(|e| match e {
+                config::ConfigError::ReadError(io) => ProjectError::ConfigRead(io),
+                config::ConfigError::SerializeError(s) => ProjectError::LayoutParse(s.to_string()),
+                _ => ProjectError::LayoutParse("Config save error".to_string()),
+            })?;
+
+        // Determine layout file path
+        let layout_path = if !self.config.layout_files.is_empty() {
+            self.path.join(&self.config.layout_files[0])
+        } else {
+            self.path.join("layout.ron")
+        };
+
+        // Save layout
+        layout_file::save_layout(&layout_path, &self.layout)
+            .map_err(|e| ProjectError::LayoutParse(e.to_string()))?;
+
+        self.dirty = false;
+        tracing::info!(target: "iced_builder::io", "Project saved successfully");
+        Ok(())
+    }
+
+    /// Export generated Rust code to the configured output file.
+    pub fn export(&self) -> Result<String, ProjectError> {
+        tracing::info!(target: "iced_builder::codegen", "Exporting code");
+
+        let code = crate::codegen::generate_code(&self.layout, &self.config);
+        let formatted = if self.config.format_output {
+            crate::util::try_format_rust_code(&code)
+        } else {
+            code
+        };
+
+        // Determine output path
+        let output_path = if self.config.output_file.is_absolute() {
+            self.config.output_file.clone()
+        } else {
+            self.path.join(&self.config.output_file)
+        };
+
+        // Create parent directories if needed
+        if let Some(parent) = output_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        // Create backup if file exists
+        if output_path.exists() {
+            let backup_path = output_path.with_extension("rs.bak");
+            let _ = std::fs::copy(&output_path, backup_path);
+        }
+
+        // Write the generated code
+        std::fs::write(&output_path, &formatted)?;
+
+        tracing::info!(
+            target: "iced_builder::codegen", 
+            path = %output_path.display(), 
+            size = formatted.len(),
+            "Code exported successfully"
+        );
+
+        Ok(formatted)
+    }
+
+    /// Create a new project in the given directory.
+    ///
+    /// Creates the config file and an initial layout file.
+    pub fn create(project_dir: &Path, template: Option<Template>) -> Result<Self, ProjectError> {
+        tracing::info!(target: "iced_builder::io", path = %project_dir.display(), "Creating new project");
+
+        // Ensure directory exists
+        std::fs::create_dir_all(project_dir)?;
+
+        // Create config file
+        let config = ProjectConfig::default();
+        let config_path = project_dir.join("iced_builder.toml");
+        config::save_config(&config_path, &config)
+            .map_err(|e| match e {
+                config::ConfigError::ReadError(io) => ProjectError::ConfigRead(io),
+                config::ConfigError::SerializeError(s) => ProjectError::LayoutParse(s.to_string()),
+                _ => ProjectError::LayoutParse("Config create error".to_string()),
+            })?;
+
+        // Create layout file from template or default
+        let layout = match template {
+            Some(Template::Form) => Self::create_form_template(),
+            Some(Template::Dashboard) => Self::create_dashboard_template(),
+            None | Some(Template::Blank) => LayoutDocument::default(),
+        };
+
+        let layout_path = project_dir.join("layout.ron");
+        layout_file::save_layout(&layout_path, &layout)
+            .map_err(|e| ProjectError::LayoutParse(e.to_string()))?;
+
+        let node_index = crate::model::layout::build_node_index(&layout.root);
+
+        tracing::info!(target: "iced_builder::io", "New project created successfully");
+
+        Ok(Self {
+            path: project_dir.to_path_buf(),
+            config,
+            layout,
+            node_index,
+            selected_id: None,
+            history: History::new(),
+            dirty: false,
+        })
+    }
+
+    /// Create a form template layout.
+    fn create_form_template() -> LayoutDocument {
+        use crate::model::layout::*;
+        
+        LayoutDocument {
+            version: 1,
+            name: String::from("Form"),
+            root: LayoutNode::new(WidgetType::Column {
+                children: vec![
+                    LayoutNode::new(WidgetType::Text {
+                        content: String::from("Form Title"),
+                        attrs: TextAttrs {
+                            font_size: 24.0,
+                            ..Default::default()
+                        },
+                    }),
+                    LayoutNode::new(WidgetType::TextInput {
+                        placeholder: String::from("Enter your name..."),
+                        value_binding: String::from("name"),
+                        message_stub: String::from("NameChanged"),
+                        attrs: InputAttrs::default(),
+                    }),
+                    LayoutNode::new(WidgetType::TextInput {
+                        placeholder: String::from("Enter your email..."),
+                        value_binding: String::from("email"),
+                        message_stub: String::from("EmailChanged"),
+                        attrs: InputAttrs::default(),
+                    }),
+                    LayoutNode::new(WidgetType::Button {
+                        label: String::from("Submit"),
+                        message_stub: String::from("Submit"),
+                        attrs: ButtonAttrs::default(),
+                    }),
+                ],
+                attrs: ContainerAttrs {
+                    spacing: 10.0,
+                    padding: PaddingSpec { top: 20.0, right: 20.0, bottom: 20.0, left: 20.0 },
+                    ..Default::default()
+                },
+            }),
+        }
+    }
+
+    /// Create a dashboard template layout.
+    fn create_dashboard_template() -> LayoutDocument {
+        use crate::model::layout::*;
+        
+        LayoutDocument {
+            version: 1,
+            name: String::from("Dashboard"),
+            root: LayoutNode::new(WidgetType::Column {
+                children: vec![
+                    // Header row
+                    LayoutNode::new(WidgetType::Row {
+                        children: vec![
+                            LayoutNode::new(WidgetType::Text {
+                                content: String::from("Dashboard"),
+                                attrs: TextAttrs {
+                                    font_size: 28.0,
+                                    ..Default::default()
+                                },
+                            }),
+                            LayoutNode::new(WidgetType::Space {
+                                width: LengthSpec::Fill,
+                                height: LengthSpec::Shrink,
+                            }),
+                            LayoutNode::new(WidgetType::Button {
+                                label: String::from("Settings"),
+                                message_stub: String::from("OpenSettings"),
+                                attrs: ButtonAttrs::default(),
+                            }),
+                        ],
+                        attrs: ContainerAttrs {
+                            spacing: 10.0,
+                            ..Default::default()
+                        },
+                    }),
+                    // Content row
+                    LayoutNode::new(WidgetType::Row {
+                        children: vec![
+                            // Left panel
+                            LayoutNode::new(WidgetType::Column {
+                                children: vec![
+                                    LayoutNode::new(WidgetType::Text {
+                                        content: String::from("Statistics"),
+                                        attrs: TextAttrs::default(),
+                                    }),
+                                ],
+                                attrs: ContainerAttrs {
+                                    width: LengthSpec::FillPortion(1),
+                                    ..Default::default()
+                                },
+                            }),
+                            // Right panel
+                            LayoutNode::new(WidgetType::Column {
+                                children: vec![
+                                    LayoutNode::new(WidgetType::Text {
+                                        content: String::from("Activity"),
+                                        attrs: TextAttrs::default(),
+                                    }),
+                                ],
+                                attrs: ContainerAttrs {
+                                    width: LengthSpec::FillPortion(2),
+                                    ..Default::default()
+                                },
+                            }),
+                        ],
+                        attrs: ContainerAttrs {
+                            spacing: 20.0,
+                            height: LengthSpec::Fill,
+                            ..Default::default()
+                        },
+                    }),
+                ],
+                attrs: ContainerAttrs {
+                    spacing: 20.0,
+                    padding: PaddingSpec { top: 20.0, right: 20.0, bottom: 20.0, left: 20.0 },
+                    height: LengthSpec::Fill,
+                    width: LengthSpec::Fill,
+                    ..Default::default()
+                },
+            }),
+        }
+    }
+
     /// Rebuild the node index after structural changes.
     pub fn rebuild_index(&mut self) {
         self.node_index = crate::model::layout::build_node_index(&self.layout.root);
@@ -155,6 +478,12 @@ impl Project {
     pub fn find_node(&self, id: ComponentId) -> Option<&LayoutNode> {
         let path = self.node_index.get(&id)?;
         self.find_node_by_path(&self.layout.root, path)
+    }
+
+    /// Find a mutable node by its ComponentId.
+    pub fn find_node_mut(&mut self, id: ComponentId) -> Option<&mut LayoutNode> {
+        let path = self.node_index.get(&id)?.clone();
+        Self::find_node_by_path_mut_static(&mut self.layout.root, &path)
     }
 
     /// Find a node by path (helper).
@@ -186,6 +515,36 @@ impl Project {
         None
     }
 
+    /// Find a mutable node by path (static helper to avoid borrow issues).
+    fn find_node_by_path_mut_static<'a>(root: &'a mut LayoutNode, path: &[usize]) -> Option<&'a mut LayoutNode> {
+        if path.is_empty() {
+            return Some(root);
+        }
+
+        let idx = path[0];
+        let remaining = &path[1..];
+
+        // Check if this is a multi-child container
+        match &mut root.widget {
+            crate::model::layout::WidgetType::Column { children, .. }
+            | crate::model::layout::WidgetType::Row { children, .. }
+            | crate::model::layout::WidgetType::Stack { children, .. } => {
+                if idx < children.len() {
+                    return Self::find_node_by_path_mut_static(&mut children[idx], remaining);
+                }
+            }
+            crate::model::layout::WidgetType::Container { child: Some(c), .. }
+            | crate::model::layout::WidgetType::Scrollable { child: Some(c), .. } => {
+                if idx == 0 {
+                    return Self::find_node_by_path_mut_static(c, remaining);
+                }
+            }
+            _ => {}
+        }
+
+        None
+    }
+
     /// Mark the project as having unsaved changes.
     pub fn mark_dirty(&mut self) {
         self.dirty = true;
@@ -195,11 +554,28 @@ impl Project {
     pub fn mark_saved(&mut self) {
         self.dirty = false;
     }
+
+    /// Get the project directory path.
+    pub fn project_path(&self) -> &Path {
+        &self.path
+    }
+}
+
+/// Project templates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Template {
+    /// Empty layout with just a root Column.
+    Blank,
+    /// A form layout with text inputs and a submit button.
+    Form,
+    /// A dashboard layout with header and content panels.
+    Dashboard,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
 
     #[test]
     fn test_project_config_default() {
@@ -215,5 +591,108 @@ mod tests {
         let project = Project::new(PathBuf::from("/test"), config);
         assert!(project.selected_id.is_none());
         assert!(!project.dirty);
+    }
+
+    #[test]
+    fn test_project_create_and_open() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        // Create a new project
+        let created = Project::create(project_dir, None).unwrap();
+        assert_eq!(created.layout.name, "Untitled");
+        assert!(!created.dirty);
+
+        // Verify files were created
+        assert!(project_dir.join("iced_builder.toml").exists());
+        assert!(project_dir.join("layout.ron").exists());
+
+        // Re-open the project
+        let opened = Project::open(project_dir).unwrap();
+        assert_eq!(opened.layout.name, created.layout.name);
+    }
+
+    #[test]
+    fn test_project_create_form_template() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        let project = Project::create(project_dir, Some(Template::Form)).unwrap();
+        assert_eq!(project.layout.name, "Form");
+        
+        // Form template should have children (title, inputs, button)
+        if let Some(children) = project.layout.root.children() {
+            assert!(children.len() >= 3);
+        } else {
+            panic!("Form template root should have children");
+        }
+    }
+
+    #[test]
+    fn test_project_create_dashboard_template() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        let project = Project::create(project_dir, Some(Template::Dashboard)).unwrap();
+        assert_eq!(project.layout.name, "Dashboard");
+    }
+
+    #[test]
+    fn test_project_save() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        let mut project = Project::create(project_dir, None).unwrap();
+        project.layout.name = "Test Layout".to_string();
+        project.mark_dirty();
+        assert!(project.dirty);
+
+        project.save().unwrap();
+        assert!(!project.dirty);
+
+        // Re-open and verify
+        let reopened = Project::open(project_dir).unwrap();
+        assert_eq!(reopened.layout.name, "Test Layout");
+    }
+
+    #[test]
+    fn test_project_export() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        // Create output directory
+        std::fs::create_dir_all(project_dir.join("src/ui")).unwrap();
+
+        let project = Project::create(project_dir, None).unwrap();
+        let code = project.export().unwrap();
+
+        assert!(code.contains("pub fn view"));
+        assert!(code.contains("Element"));
+
+        // Verify output file was created
+        assert!(project_dir.join("src/ui/layout_generated.rs").exists());
+    }
+
+    #[test]
+    fn test_project_find_node() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        let project = Project::create(project_dir, Some(Template::Form)).unwrap();
+        
+        // Should be able to find the root node
+        let root_id = project.layout.root.id;
+        let found = project.find_node(root_id);
+        assert!(found.is_some());
+    }
+
+    #[test]
+    fn test_project_open_missing_config() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        // Try to open a project without config
+        let result = Project::open(project_dir);
+        assert!(result.is_err());
     }
 }

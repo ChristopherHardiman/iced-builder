@@ -32,6 +32,7 @@ pub struct App {
 pub enum Message {
     // File operations
     NewProject,
+    CreateProjectAt(std::path::PathBuf),
     OpenProject,
     SaveProject,
     ExportCode,
@@ -99,26 +100,74 @@ impl App {
         match message {
             Message::NewProject => {
                 tracing::info!(target: "iced_builder::app", "Creating new project");
-                // Create a new project with default layout
-                let config = ProjectConfig::default();
-                let project = Project::new(std::path::PathBuf::from("."), config);
-                self.project = Some(project);
-                self.status_message = Some("New project created".to_string());
+                // Open folder picker for new project location
+                Task::perform(
+                    async {
+                        let folder = rfd::AsyncFileDialog::new()
+                            .set_title("Select folder for new project")
+                            .pick_folder()
+                            .await;
+                        folder.map(|f| f.path().to_path_buf())
+                    },
+                    |path| match path {
+                        Some(path) => Message::CreateProjectAt(path),
+                        None => Message::Noop,
+                    },
+                )
+            }
+
+            Message::CreateProjectAt(path) => {
+                tracing::info!(target: "iced_builder::app", path = %path.display(), "Creating project at path");
+                match Project::create(&path, None) {
+                    Ok(project) => {
+                        self.project = Some(project);
+                        self.status_message = Some("New project created".to_string());
+                    }
+                    Err(e) => {
+                        tracing::error!(target: "iced_builder::app", error = %e, "Failed to create project");
+                        self.status_message = Some(format!("Failed to create project: {}", e));
+                    }
+                }
                 Task::none()
             }
 
             Message::OpenProject => {
                 tracing::info!(target: "iced_builder::app", "Open project requested");
-                // TODO: Open file dialog
-                self.status_message = Some("Open project not yet implemented".to_string());
-                Task::none()
+                // Open folder picker dialog
+                Task::perform(
+                    async {
+                        let folder = rfd::AsyncFileDialog::new()
+                            .set_title("Open Iced Builder Project")
+                            .pick_folder()
+                            .await;
+                        
+                        match folder {
+                            Some(f) => {
+                                let path = f.path().to_path_buf();
+                                Project::open(&path)
+                                    .map_err(|e| e.to_string())
+                            }
+                            None => Err("No folder selected".to_string()),
+                        }
+                    },
+                    Message::ProjectOpened,
+                )
             }
 
             Message::SaveProject => {
                 tracing::info!(target: "iced_builder::app", "Saving project");
                 if let Some(project) = &mut self.project {
-                    project.mark_saved();
-                    self.status_message = Some("Project saved".to_string());
+                    match project.save() {
+                        Ok(()) => {
+                            self.status_message = Some("Project saved".to_string());
+                        }
+                        Err(e) => {
+                            tracing::error!(target: "iced_builder::app", error = %e, "Failed to save project");
+                            self.status_message = Some(format!("Failed to save: {}", e));
+                        }
+                    }
+                } else {
+                    self.status_message = Some("No project open".to_string());
                 }
                 Task::none()
             }
@@ -126,12 +175,21 @@ impl App {
             Message::ExportCode => {
                 tracing::info!(target: "iced_builder::codegen", "Exporting code");
                 if let Some(project) = &self.project {
-                    let code = crate::codegen::generate_code(&project.layout, &project.config);
-                    let formatted = crate::util::try_format_rust_code(&code);
-                    tracing::debug!(target: "iced_builder::codegen", code_length = formatted.len(), "Code generated");
-                    // For now, just print to console
-                    println!("Generated code:\n{}", formatted);
-                    self.status_message = Some("Code exported (see console)".to_string());
+                    match project.export() {
+                        Ok(code) => {
+                            tracing::debug!(target: "iced_builder::codegen", code_length = code.len(), "Code generated");
+                            self.status_message = Some(format!(
+                                "Code exported to {}",
+                                project.config.output_file.display()
+                            ));
+                        }
+                        Err(e) => {
+                            tracing::error!(target: "iced_builder::codegen", error = %e, "Export failed");
+                            self.status_message = Some(format!("Export failed: {}", e));
+                        }
+                    }
+                } else {
+                    self.status_message = Some("No project open".to_string());
                 }
                 Task::none()
             }
