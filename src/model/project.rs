@@ -559,6 +559,67 @@ impl Project {
     pub fn project_path(&self) -> &Path {
         &self.path
     }
+
+    /// Remove a node from the tree by its ComponentId.
+    /// Returns true if the node was found and removed.
+    /// Note: The root node cannot be removed.
+    pub fn remove_node(&mut self, id: ComponentId) -> bool {
+        // Get the path to the node
+        let path = match self.node_index.get(&id) {
+            Some(p) => p.clone(),
+            None => return false,
+        };
+
+        // Cannot remove root node (empty path)
+        if path.is_empty() {
+            return false;
+        }
+
+        // Find the parent and remove the child
+        let parent_path = &path[..path.len() - 1];
+        let child_index = path[path.len() - 1];
+
+        let removed = if parent_path.is_empty() {
+            // Parent is root
+            Self::remove_child_at(&mut self.layout.root, child_index)
+        } else {
+            // Find parent node
+            if let Some(parent) = Self::find_node_by_path_mut_static(&mut self.layout.root, parent_path) {
+                Self::remove_child_at(parent, child_index)
+            } else {
+                false
+            }
+        };
+
+        if removed {
+            self.rebuild_index();
+        }
+
+        removed
+    }
+
+    /// Remove a child at a specific index from a node.
+    fn remove_child_at(node: &mut LayoutNode, index: usize) -> bool {
+        match &mut node.widget {
+            crate::model::layout::WidgetType::Column { children, .. }
+            | crate::model::layout::WidgetType::Row { children, .. }
+            | crate::model::layout::WidgetType::Stack { children, .. } => {
+                if index < children.len() {
+                    children.remove(index);
+                    return true;
+                }
+            }
+            crate::model::layout::WidgetType::Container { child, .. }
+            | crate::model::layout::WidgetType::Scrollable { child, .. } => {
+                if index == 0 && child.is_some() {
+                    *child = None;
+                    return true;
+                }
+            }
+            _ => {}
+        }
+        false
+    }
 }
 
 /// Project templates.
@@ -694,5 +755,105 @@ mod tests {
         // Try to open a project without config
         let result = Project::open(project_dir);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_project_remove_node() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        let mut project = Project::create(project_dir, Some(Template::Form)).unwrap();
+        
+        // Get the root and find a child to remove
+        let root_id = project.layout.root.id;
+        
+        // Get a child node ID
+        let child_id = project.layout.root.children()
+            .expect("Root should be a container")
+            .first()
+            .expect("Should have at least one child")
+            .id;
+        
+        // Cannot remove root
+        assert!(!project.remove_node(root_id));
+        
+        // Can remove child
+        assert!(project.remove_node(child_id));
+        
+        // Child should no longer be findable
+        assert!(project.find_node(child_id).is_none());
+    }
+
+    #[test]
+    fn test_project_remove_node_nested() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        let mut project = Project::create(project_dir, Some(Template::Dashboard)).unwrap();
+        
+        // Dashboard has nested structure, find a deeply nested node
+        let children = project.layout.root.children().unwrap();
+        if let Some(first_child) = children.first() {
+            if let Some(nested_children) = first_child.children() {
+                if let Some(nested_child) = nested_children.first() {
+                    let nested_id = nested_child.id;
+                    
+                    // Remove the nested node
+                    assert!(project.remove_node(nested_id));
+                    
+                    // Verify it's gone
+                    assert!(project.find_node(nested_id).is_none());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_project_remove_nonexistent_node() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        let mut project = Project::create(project_dir, None).unwrap();
+        
+        // Try to remove a node that doesn't exist
+        let fake_id = crate::model::layout::ComponentId::new();
+        assert!(!project.remove_node(fake_id));
+    }
+
+    #[test]
+    fn test_project_history_integration() {
+        let temp = tempdir().unwrap();
+        let project_dir = temp.path();
+
+        let mut project = Project::create(project_dir, Some(Template::Form)).unwrap();
+        
+        // Initially no undo/redo available
+        assert!(!project.history.can_undo());
+        assert!(!project.history.can_redo());
+        
+        // Push a snapshot
+        project.history.push(project.layout.clone());
+        
+        // Now undo should be available
+        assert!(project.history.can_undo());
+        assert!(!project.history.can_redo());
+        
+        // Get a child and modify
+        let child_id = project.layout.root.children()
+            .unwrap()
+            .first()
+            .unwrap()
+            .id;
+        
+        // Remove the child
+        project.remove_node(child_id);
+        
+        // Undo should restore the child
+        let prev = project.history.undo(project.layout.clone()).unwrap();
+        project.layout = prev;
+        project.rebuild_index();
+        
+        // The child should be findable again
+        assert!(project.find_node(child_id).is_some());
     }
 }

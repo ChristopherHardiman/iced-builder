@@ -269,9 +269,22 @@ impl App {
                 if let Some(project) = &mut self.project {
                     if let Some(id) = project.selected_id {
                         tracing::info!(target: "iced_builder::app::tree", %id, "Delete requested");
-                        // TODO: Actually delete the selected component
-                        project.selected_id = None;
-                        self.status_message = Some("Delete not yet implemented".to_string());
+                        
+                        // Push history before modification
+                        project.history.push(project.layout.clone());
+                        
+                        // Remove the selected node
+                        if project.remove_node(id) {
+                            project.selected_id = None;
+                            project.mark_dirty();
+                            tracing::info!(target: "iced_builder::app::tree", %id, "Component deleted");
+                            self.status_message = Some("Component deleted".to_string());
+                        } else {
+                            // Undo the history push if removal failed
+                            let _ = project.history.undo(project.layout.clone());
+                            tracing::warn!(target: "iced_builder::app::tree", %id, "Failed to delete component");
+                            self.status_message = Some("Cannot delete this component".to_string());
+                        }
                     }
                 }
                 Task::none()
@@ -370,14 +383,25 @@ impl App {
         }
     }
 
-    /// Helper to update a node property.
-    fn update_node_property<F>(&mut self, _id: ComponentId, _update_fn: F)
+    /// Helper to update a node property with history tracking.
+    fn update_node_property<F>(&mut self, id: ComponentId, update_fn: F)
     where
         F: FnOnce(&mut LayoutNode),
     {
-        // TODO: Find node by ID and apply update
         if let Some(project) = &mut self.project {
-            project.mark_dirty();
+            // Push history before modification
+            project.history.push(project.layout.clone());
+            
+            // Find and update the node
+            if let Some(node) = project.find_node_mut(id) {
+                update_fn(node);
+                tracing::debug!(target: "iced_builder::app::property", %id, "Property updated");
+                project.mark_dirty();
+            } else {
+                // Undo the history push if node not found
+                let _ = project.history.undo(project.layout.clone());
+                tracing::warn!(target: "iced_builder::app::property", %id, "Node not found for property update");
+            }
         }
     }
 
@@ -405,9 +429,29 @@ impl App {
             None => container(text("No project")).into(),
         };
 
+        // Build status bar content
+        let status_text = self.status_message.as_deref().unwrap_or("Ready");
+        let history_status = match &self.project {
+            Some(project) => {
+                let can_undo = project.history.can_undo();
+                let can_redo = project.history.can_redo();
+                format!(
+                    " | Undo: {} | Redo: {}",
+                    if can_undo { "Ctrl+Z" } else { "-" },
+                    if can_redo { "Ctrl+Y" } else { "-" }
+                )
+            }
+            None => String::new(),
+        };
+        
+        let dirty_indicator = match &self.project {
+            Some(project) if project.dirty => " [unsaved]",
+            _ => "",
+        };
+
         // Status bar
         let status = container(
-            text(self.status_message.as_deref().unwrap_or("Ready"))
+            text(format!("{}{}{}", status_text, dirty_indicator, history_status))
                 .size(12)
                 .color(iced::Color::from_rgb(0.6, 0.6, 0.6)),
         )

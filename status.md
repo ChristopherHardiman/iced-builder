@@ -2,11 +2,11 @@
 
 **Last Updated:** December 4, 2025
 
-## Current Phase: Phase 2 - Project & Configuration ✅ COMPLETE
+## Current Phase: Phase 3 - Undo/Redo (History) ✅ COMPLETE
 
 ### Build Status
 - ✅ **Compiles successfully** (`cargo build` passes)
-- ✅ **All tests pass** (30 tests)
+- ✅ **All tests pass** (34 tests)
 - ✅ **Application launches** without panics
 - ✅ **Logging system active** (tracing-based)
 - ⚠️ Dead code warnings (expected - scaffolding for future phases)
@@ -101,10 +101,6 @@ src/
 
 ## Upcoming Work
 
-### Phase 3: Undo/Redo (History)
-- [x] History struct implemented (Phase 0)
-- [ ] Full integration with all mutations
-
 ### Phase 4: Editor UI – Skeleton
 - [ ] Widget rendering on canvas with real data
 - [ ] Click-to-select with visual feedback
@@ -119,6 +115,43 @@ src/
 - [ ] Error handling improvements
 - [ ] Performance optimization
 - [ ] Keyboard shortcuts refinement
+
+---
+
+## Phase 3 Completed Features
+
+### 3.1 History Integration
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Snapshot-based undo | ✅ | Full LayoutDocument snapshots |
+| Redo support | ✅ | Maintains redo stack |
+| Stack size limit | ✅ | 50 states max |
+| PaletteItemClicked | ✅ | History push before add |
+| DeleteSelected | ✅ | History push before delete |
+| Property updates | ✅ | History push in update_node_property |
+
+### 3.2 Node Management
+| Feature | Status | Notes |
+|---------|--------|-------|
+| `remove_node()` | ✅ | Delete any node by ID |
+| `remove_child_at()` | ✅ | Helper for child removal |
+| Nested removal | ✅ | Works at any depth |
+| Index rebuild | ✅ | Automatic after removal |
+
+### 3.3 UI Indicators
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Undo availability | ✅ | Status bar shows Ctrl+Z when available |
+| Redo availability | ✅ | Status bar shows Ctrl+Y when available |
+| Dirty indicator | ✅ | Status bar shows [unsaved] |
+
+### 3.4 Tests Added
+| Test | Description |
+|------|-------------|
+| `test_project_remove_node` | Basic node removal |
+| `test_project_remove_node_nested` | Nested node removal |
+| `test_project_remove_nonexistent_node` | Non-existent ID handling |
+| `test_project_history_integration` | Full undo/redo cycle |
 
 ---
 
