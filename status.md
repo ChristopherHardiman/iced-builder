@@ -2,7 +2,7 @@
 
 **Last Updated:** December 4, 2025
 
-## Current Phase: Phase 3 - Undo/Redo (History) ✅ COMPLETE
+## Current Phase: Phase 4 - Editor UI Skeleton ✅ COMPLETE
 
 ### Build Status
 - ✅ **Compiles successfully** (`cargo build` passes)
@@ -101,20 +101,57 @@ src/
 
 ## Upcoming Work
 
-### Phase 4: Editor UI – Skeleton
-- [ ] Widget rendering on canvas with real data
-- [ ] Click-to-select with visual feedback
-- [ ] Property inspector displays selected widget properties
+### Phase 5: Widget Palette Improvements
 - [ ] Drag-and-drop from palette to canvas
+- [ ] Insert widget into selected container
 
-### Phase 5: Code Generation Improvements
+### Phase 6: Code Generation Improvements
 - [x] Basic code generation implemented
 - [ ] Real-time code preview panel
 
-### Phase 6: Polish
+### Phase 7: Polish
 - [ ] Error handling improvements
 - [ ] Performance optimization
 - [ ] Keyboard shortcuts refinement
+
+---
+
+## Phase 4 Completed Features
+
+### 4.1 Canvas Rendering
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Recursive widget rendering | ✅ | All 12 widget types rendered |
+| Selection via MouseArea | ✅ | Click any widget to select |
+| Selection border styling | ✅ | Blue border on selected widgets |
+| Scrollable viewport | ✅ | Large layouts can scroll |
+| Design mode behavior | ✅ | Buttons select, inputs read-only |
+
+### 4.2 Property Inspector
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Dynamic form generation | ✅ | Forms based on widget type |
+| Section headers | ✅ | Layout, Content, Bindings, Style |
+| Text editing | ✅ | Content, labels, placeholders |
+| Numeric editing | ✅ | Padding and spacing with parsing |
+| Binding editing | ✅ | Value bindings, message stubs |
+| All widget types | ✅ | Column, Row, Text, Button, TextInput, Checkbox, Slider, PickList, Space |
+
+### 4.3 Message Handlers Added
+| Message | Description |
+|---------|-------------|
+| `UpdatePadding` | Set container padding (uniform) |
+| `UpdateSpacing` | Set container spacing |
+| `UpdateCheckboxLabel` | Edit checkbox label text |
+| `UpdateSliderRange` | Set slider min/max values |
+
+### 4.4 Tree View
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Hierarchical display | ✅ | Nested with indentation |
+| Widget type icons | ✅ | Visual type indicators |
+| Click to select | ✅ | Emits SelectComponent |
+| Selected highlight | ✅ | Blue text for selected node |
 
 ---
 

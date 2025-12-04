@@ -61,6 +61,16 @@ pub enum Message {
     UpdateMessageStub(ComponentId, String),
     UpdatePlaceholder(ComponentId, String),
     UpdateBinding(ComponentId, String),
+    
+    // Container property updates
+    UpdatePadding(ComponentId, f32),
+    UpdateSpacing(ComponentId, f32),
+    
+    // Checkbox property updates
+    UpdateCheckboxLabel(ComponentId, String),
+    
+    // Slider property updates
+    UpdateSliderRange(ComponentId, f32, f32),
 
     // No-op (for disabled widgets)
     Noop,
@@ -374,6 +384,62 @@ impl App {
                         crate::model::layout::WidgetType::Slider { value_binding, .. } => *value_binding = binding,
                         crate::model::layout::WidgetType::PickList { selected_binding, .. } => *selected_binding = binding,
                         _ => {}
+                    }
+                });
+                Task::none()
+            }
+
+            Message::UpdatePadding(id, padding) => {
+                self.update_node_property(id, |node| {
+                    match &mut node.widget {
+                        crate::model::layout::WidgetType::Column { attrs, .. }
+                        | crate::model::layout::WidgetType::Row { attrs, .. }
+                        | crate::model::layout::WidgetType::Container { attrs, .. }
+                        | crate::model::layout::WidgetType::Scrollable { attrs, .. }
+                        | crate::model::layout::WidgetType::Stack { attrs, .. } => {
+                            attrs.padding = crate::model::layout::PaddingSpec {
+                                top: padding,
+                                right: padding,
+                                bottom: padding,
+                                left: padding,
+                            };
+                        }
+                        _ => {}
+                    }
+                });
+                Task::none()
+            }
+
+            Message::UpdateSpacing(id, spacing) => {
+                self.update_node_property(id, |node| {
+                    match &mut node.widget {
+                        crate::model::layout::WidgetType::Column { attrs, .. }
+                        | crate::model::layout::WidgetType::Row { attrs, .. }
+                        | crate::model::layout::WidgetType::Container { attrs, .. }
+                        | crate::model::layout::WidgetType::Scrollable { attrs, .. }
+                        | crate::model::layout::WidgetType::Stack { attrs, .. } => {
+                            attrs.spacing = spacing;
+                        }
+                        _ => {}
+                    }
+                });
+                Task::none()
+            }
+
+            Message::UpdateCheckboxLabel(id, label) => {
+                self.update_node_property(id, |node| {
+                    if let crate::model::layout::WidgetType::Checkbox { label: l, .. } = &mut node.widget {
+                        *l = label;
+                    }
+                });
+                Task::none()
+            }
+
+            Message::UpdateSliderRange(id, min, max) => {
+                self.update_node_property(id, |node| {
+                    if let crate::model::layout::WidgetType::Slider { min: m, max: mx, .. } = &mut node.widget {
+                        *m = min;
+                        *mx = max;
                     }
                 });
                 Task::none()
