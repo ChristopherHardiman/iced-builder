@@ -1,0 +1,17 @@
+# Iced Builder Configuration
+# This file configures code generation for this project.
+
+# Path to the output Rust file (relative to this file)
+output_file = "src/view.rs"
+
+# Name of the Message enum in the target project
+message_type = "Message"
+
+# Name of the State struct in the target project
+state_type = "State"
+
+# Layout files to load (relative to this file)
+layout_files = ["layout.ron"]
+
+# Whether to run rustfmt on generated code
+format_output = true
