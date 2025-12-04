@@ -7,15 +7,18 @@ This document outlines a phased, step-by-step plan for implementing the Iced Bui
 ## Phase 0: Project Setup & Tooling
 
 ### 0.1 Cargo Configuration
-- Set the Rust edition to `2021` (the current stable; `2024` is not yet released).
+- Set the Rust edition to `2021`.
 - Add dependencies:
-  - `iced` (latest stable, with features for multi-window if needed later).
-  - `serde`, `serde_json`, `ron` for serialization.
+  - `iced = "0.13"` (pin minor version to avoid breaking changes).
+  - `serde = { version = "1", features = ["derive"] }`, `serde_json`, `ron` for serialization.
   - `toml` for parsing `iced_builder.toml`.
-  - `uuid` for generating unique component IDs.
+  - `uuid = { version = "1", features = ["v4", "serde"] }` for generating unique component IDs.
+  - `rfd = "0.15"` for native file dialogs (XDG Portal on Linux, native on Windows/macOS).
   - `thiserror` for custom error types.
   - `anyhow` (optional) for prototyping error propagation.
+  - `regex` for validating Rust identifier patterns.
 - Add a `[profile.release]` section with LTO and size optimizations for portable binaries.
+- Add `#![windows_subsystem = "windows"]` to `main.rs` for Windows builds.
 
 ### 0.2 Directory Structure
 Organize the source tree for clarity and separation of concerns:
@@ -49,6 +52,15 @@ src/
 - Use `cargo watch -x run` for rapid iteration.
 - Keep a sample project folder (e.g., `examples/sample_project/`) with an `iced_builder.toml` and a `layout.ron` for testing.
 
+### 0.4 Early Prototype: Canvas Interaction (Risk Mitigation)
+Before proceeding with full implementation, build a minimal prototype to validate:
+- Wrapping Iced widgets in `MouseArea` for click interception.
+- Nested containers properly bubble selection events.
+- `Container::style` can apply selection borders without layout issues.
+- TextInput focus can be intercepted or disabled in design mode.
+
+This de-risks Phase 6 (Canvas) by confirming the core UX assumption early.
+
 ---
 
 ## Phase 1: Data Model ("Layout AST")
@@ -77,7 +89,22 @@ src/
 
 #### ComponentId
 - Use `uuid::Uuid` for unique, stable identification of each node.
-- Wrap in a newtype for type safety: `struct ComponentId(Uuid)`.
+- Wrap in a newtype for type safety: `struct ComponentId(Uuid)` with `Serialize`/`Deserialize`.
+- Implement `Display` for debugging and tree view labels.
+
+#### NodeIndex
+- Maintain a `HashMap<ComponentId, Vec<usize>>` mapping IDs to tree paths for O(1) lookup.
+- Rebuild index on layout load or structural changes.
+- Alternative: use `id_tree` or `indextree` crate for built-in traversal support.
+
+#### Default Attribute Values
+Define explicit defaults for all attributes (used when creating new nodes):
+- `padding: Padding::ZERO`
+- `spacing: 0.0`
+- `width: Length::Shrink`
+- `height: Length::Shrink`
+- `align_items: Alignment::Start`
+- `font_size: 16` (pixels)
 
 #### LayoutDocument
 - Top-level struct holding the root `LayoutNode` and any document-level metadata (e.g., name, version).
@@ -91,8 +118,10 @@ src/
 - Implement a `validate(&self) -> Vec<ValidationError>` method on `LayoutNode`.
 - Check constraints:
   - Leaf nodes (Text, Button, etc.) must not have children fields populated.
-  - Bindings and message stubs should be valid Rust identifiers (regex check).
-- Return a list of warnings/errors with paths to the offending nodes.
+  - Bindings and message stubs must be valid Rust identifiers: `^[a-zA-Z_][a-zA-Z0-9_]*$`.
+  - Empty containers (Column/Row with zero children) are valid but emit a warning.
+  - Move operations must validate target is not a descendant of the source (prevents circular references).
+- Return a list of warnings/errors with paths to the offending nodes (e.g., `"root.children[2].child"`).
 
 ---
 
@@ -100,10 +129,12 @@ src/
 
 ### 2.1 Config File (`iced_builder.toml`)
 Define the expected structure:
-- `project_root`: String path.
+- `project_root`: String path (optional, defaults to config file directory).
 - `output_file`: Relative path for generated Rust code.
 - `message_type`: Fully-qualified Rust type (e.g., `crate::Message`).
+- `state_type`: Fully-qualified Rust type for app state (e.g., `crate::AppState`).
 - `layout_files`: Optional list or glob of layout files to load.
+- `format_output`: Boolean, whether to run rustfmt (default: true).
 
 Parse using the `toml` crate into a `ProjectConfig` struct.
 
@@ -111,13 +142,17 @@ Parse using the `toml` crate into a `ProjectConfig` struct.
 Create a `Project` struct that holds:
 - `config: ProjectConfig`
 - `layout: LayoutDocument`
+- `node_index: HashMap<ComponentId, Vec<usize>>`
 - `selected_id: Option<ComponentId>`
 - `history: History` (for undo/redo)
 
 Provide methods:
-- `open(path: &Path) -> Result<Project>`: Locate config, load layout(s).
+- `new(path: &Path, template: Option<Template>) -> Result<Project>`: Create new project with default/template layout.
+- `open(path: &Path) -> Result<Project>`: Locate config, load layout(s), build node index.
 - `save(&self) -> Result<()>`: Write layout back to disk.
 - `export(&self) -> Result<()>`: Generate Rust code to `output_file`.
+- `find_node(&self, id: ComponentId) -> Option<&LayoutNode>`: O(1) lookup via index.
+- `find_node_mut(&mut self, id: ComponentId) -> Option<&mut LayoutNode>`: Mutable lookup.
 
 ---
 
@@ -189,13 +224,28 @@ Initially, implement with simple fixed-width columns; refine with `pane_grid` la
 
 ### 6.1 Rendering the Layout Tree
 - Implement a recursive function: `render_node(node: &LayoutNode, selected_id: Option<ComponentId>) -> Element<Message>`.
-- For each node type, produce the corresponding Iced widget.
-- Wrap every rendered widget in a `MouseArea` (or `button` acting as a selection target) that emits `SelectComponent(id)` on click.
+- For each node type, produce the corresponding Iced widget using 0.13 syntax:
+  - `Column` → `column![...].spacing(n).padding(n)`
+  - `Row` → `row![...].spacing(n).padding(n)`
+  - `Text` → `text("content").size(n)`
+  - `Button` → `button(text("label")).on_press(Message::SelectComponent(id))`
+  - `Container` → `container(child).padding(n).width(...).height(...)`
+- Wrap every rendered widget in `mouse_area(widget).on_press(Message::SelectComponent(id))` for selection.
 
 ### 6.2 Selection Indication
-- When a node's ID matches `selected_id`, apply a visual indicator:
-  - A colored border (using `Container::style` with a custom style).
-  - Or overlay a semi-transparent highlight.
+- When a node's ID matches `selected_id`, wrap in a styled container:
+  ```rust
+  container(widget)
+      .style(|_theme| container::Style {
+          border: Border {
+              color: Color::from_rgb(0.2, 0.5, 1.0),
+              width: 2.0,
+              radius: 4.0.into(),
+          },
+          ..Default::default()
+      })
+  ```
+- Consider using `Stack` widget to overlay selection handles without affecting layout.
 
 ### 6.3 Disabling Runtime Behavior
 - For buttons, do not wire `on_press` to real actions; instead, always emit `SelectComponent`.
@@ -251,30 +301,38 @@ Initially, implement with simple fixed-width columns; refine with `pane_grid` la
 ### 9.2 Output Template
 Generate a module like:
 
-```
+```rust
 // Auto-generated by Iced Builder – do not edit manually.
+// Regenerate by opening this project in Iced Builder.
 
 use iced::widget::{column, row, container, scrollable, text, button, text_input, checkbox, slider, pick_list};
-use iced::Element;
+use iced::{Element, Length, Alignment, Color};
 
-use <message_type>;
+use crate::Message;  // from config.message_type
+use crate::AppState; // from config.state_type
 
 pub fn view(state: &AppState) -> Element<Message> {
-    <generated widget tree>
+    // <generated widget tree>
 }
 ```
 
-- Replace `<message_type>` with the configured type.
-- Replace `<generated widget tree>` with the recursive output.
-
 ### 9.3 Node-to-Code Mapping
 For each `LayoutNode` variant, define how it maps to Iced builder syntax:
-- `Column` → `column![child1, child2, ...].padding(...).spacing(...)`
-- `Text` → `text("content").size(...)`
-- `Button` → `button(text("label")).on_press(Message::Stub)`
-- And so on.
+- `Column` → `column![child1, child2, ...].padding(p).spacing(s).align_x(Alignment::...)`
+- `Row` → `row![child1, child2, ...].padding(p).spacing(s).align_y(Alignment::...)`
+- `Text` → `text("content").size(n)`
+- `Button` → `button(text("label")).on_press(Message::ButtonName)`
+- `TextInput` → `text_input("placeholder", &state.field_name).on_input(Message::FieldNameChanged)`
+- `Checkbox` → `checkbox("label", state.is_checked).on_toggle(Message::CheckboxToggled)`
+- `Slider` → `slider(min..=max, state.value, Message::SliderChanged)`
+- `Container` → `container(child).padding(p).width(Length::...).height(Length::...)`
 
-### 9.4 Formatting
+### 9.4 Binding Resolution
+- `value_binding: "username"` generates `&state.username`
+- `message_stub: "Submit"` generates `Message::Submit`
+- For stateful widgets (TextInput, Checkbox, Slider), generate both state reference and message handler
+
+### 9.5 Formatting
 - After generating the string, invoke `rustfmt` via `std::process::Command`.
 - If `rustfmt` is not available, emit a warning but still write the unformatted code.
 
@@ -289,16 +347,32 @@ For each `LayoutNode` variant, define how it maps to Iced builder syntax:
 ### 10.1 Layout Files
 - `load_layout(path: &Path) -> Result<LayoutDocument>`: Detect format (RON/JSON) by extension or content, deserialize.
 - `save_layout(path: &Path, layout: &LayoutDocument) -> Result<()>`: Serialize and write.
+- Create backup (`.bak`) before overwriting existing files.
 
 ### 10.2 Project Opening Flow
 1. User triggers "Open Project" (file dialog or CLI argument).
-2. Locate `iced_builder.toml` in the selected folder.
-3. Parse config.
-4. Load layout file(s) specified in config (or default `layout.ron`).
-5. Populate `Project` and display on canvas.
+2. Use `rfd::FileDialog::new().pick_folder()` for folder selection.
+3. Locate `iced_builder.toml` in the selected folder.
+4. Parse config.
+5. Load layout file(s) specified in config (or default `layout.ron`).
+6. Build node index for O(1) lookups.
+7. Populate `Project` and display on canvas.
 
-### 10.3 File Dialogs
-- Use `rfd` crate (or Iced's built-in file dialog if available) to present native open/save dialogs.
+### 10.3 New Project Flow
+1. User triggers "New Project".
+2. Use `rfd::FileDialog::new().pick_folder()` to select target directory.
+3. Optionally select a template (Blank, Form, Dashboard).
+4. Generate default `iced_builder.toml` with sensible defaults.
+5. Generate initial `layout.ron` (empty or from template).
+6. Open the new project.
+
+### 10.4 File Dialogs
+- Use `rfd` crate for native file dialogs:
+  - `rfd::FileDialog` for synchronous dialogs
+  - `rfd::AsyncFileDialog` if using async (requires tokio/async-std feature)
+- On Linux: Uses XDG Desktop Portal by default (GTK/KDE native dialogs)
+- On Windows/macOS: Uses native OS dialogs
+- Add file filters: `.ron`, `.json` for layout files; folders for project open
 
 ---
 
@@ -313,7 +387,19 @@ For each `LayoutNode` variant, define how it maps to Iced builder syntax:
 - `Ctrl+E` → `ExportCode`
 
 ### 11.2 Keyboard Handling
-- Use Iced's subscription system or `keyboard::on_key_press` to capture global shortcuts.
+- Use Iced's subscription system with `keyboard::on_key_press` to capture global shortcuts:
+  ```rust
+  fn subscription(&self) -> Subscription<Message> {
+      keyboard::on_key_press(|key, modifiers| {
+          match (key, modifiers.command()) {
+              (keyboard::Key::Character("z"), true) => Some(Message::Undo),
+              (keyboard::Key::Character("y"), true) => Some(Message::Redo),
+              (keyboard::Key::Named(keyboard::key::Named::Delete), false) => Some(Message::DeleteSelected),
+              _ => None,
+          }
+      })
+  }
+  ```
 
 ### 11.3 Visual Feedback
 - Show a status bar or toast for save/export success/failure.
@@ -369,23 +455,26 @@ For each `LayoutNode` variant, define how it maps to Iced builder syntax:
 
 ## Implementation Order (Summary)
 
-| Order | Phase | Milestone |
-|-------|-------|-----------|
-| 1 | 0 | Project setup, dependencies, directory structure |
-| 2 | 1 | Layout AST types, serialization, validation |
-| 3 | 2 | Project config parsing, Project struct |
-| 4 | 3 | Undo/redo history |
-| 5 | 4 | Iced app skeleton with three-pane layout |
-| 6 | 5 | Widget palette (click-to-add) |
-| 7 | 6 | Canvas rendering of layout tree with selection |
-| 8 | 7 | Property inspector for selected node |
-| 9 | 8 | Tree view sidebar |
-| 10 | 9 | Code generation and rustfmt integration |
-| 11 | 10 | File I/O (load/save layout, open project) |
-| 12 | 11 | Keyboard shortcuts and UX polish |
-| 13 | 12 | Preview mode (stretch) |
-| 14 | 13 | Testing (unit, integration, manual) |
-| 15 | 14 | CI/CD and release automation |
+| Order | Phase | Milestone | Est. Time |
+|-------|-------|-----------|----------|
+| 1 | 0 | Project setup, dependencies, directory structure | 1 day |
+| 2 | 0.4 | Canvas interaction prototype (risk mitigation) | 2-3 days |
+| 3 | 1 | Layout AST types, serialization, validation | 2-3 days |
+| 4 | 2 | Project config parsing, Project struct | 1-2 days |
+| 5 | 3 | Undo/redo history | 1 day |
+| 6 | 4 | Iced app skeleton with three-pane layout | 2-3 days |
+| 7 | 5 | Widget palette (click-to-add) | 1-2 days |
+| 8 | 6 | Canvas rendering of layout tree with selection | 3-4 days |
+| 9 | 7 | Property inspector for selected node | 2-3 days |
+| 10 | 8 | Tree view sidebar | 2 days |
+| 11 | 9 | Code generation and rustfmt integration | 2-3 days |
+| 12 | 10 | File I/O (load/save layout, open/new project) | 2 days |
+| 13 | 11 | Keyboard shortcuts and UX polish | 2 days |
+| 14 | 12 | Preview mode (stretch) | 2-3 days |
+| 15 | 13 | Testing (unit, integration, manual) | 3-4 days |
+| 16 | 14 | CI/CD and release automation | 2 days |
+
+**Total estimated time: 4-6 weeks** (solo developer, part-time) or **2-3 weeks** (full-time)
 
 ---
 
@@ -393,19 +482,23 @@ For each `LayoutNode` variant, define how it maps to Iced builder syntax:
 
 | Risk | Mitigation |
 |------|------------|
-| Iced API changes between versions | Pin to a specific Iced version; update intentionally. |
+| Iced API changes between versions | Pin to `iced = "0.13"` (minor version); update intentionally after testing. |
+| Canvas click interception fails with nested widgets | Prototype early (Phase 0.4) with `MouseArea` wrapping; fall back to tree-view-only selection if needed. |
 | Complex drag-and-drop implementation | Defer DnD to a later phase; use click-to-add and tree reordering first. |
-| Large layouts cause performance issues | Profile early; consider virtualization or lazy rendering if needed. |
+| Large layouts cause performance issues | Profile early; consider virtualization or `Lazy` widget if needed. |
 | `rustfmt` not available on user's system | Gracefully degrade; emit a warning and output unformatted code. |
+| File dialogs fail on some Linux distros | `rfd` falls back to Zenity; document XDG Portal requirement. |
+| macOS notarization required for distribution | Document signing process; consider ad-hoc signing for initial releases. |
 | Parsing arbitrary Rust view code (future) | Limit to a strict, documented subset; fail gracefully with clear errors. |
 
 ---
 
 ## Next Steps
 
-1. Fix `Cargo.toml` edition to `2021` and add initial dependencies.
+1. Update `Cargo.toml` with edition `2021` and all dependencies (iced 0.13, rfd, uuid, etc.).
 2. Create the directory structure under `src/`.
-3. Implement Phase 1 (Layout AST types) and write serialization tests.
-4. Proceed through phases in order, committing after each milestone.
+3. **Build canvas interaction prototype (Phase 0.4)** to validate MouseArea/selection approach.
+4. Implement Phase 1 (Layout AST types) and write serialization tests.
+5. Proceed through phases in order, committing after each milestone.
 
 This plan should provide a clear path from the current scaffold to a functional Iced Builder MVP.
