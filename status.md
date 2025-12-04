@@ -2,12 +2,42 @@
 
 **Last Updated:** December 4, 2025
 
-## Current Phase: Phase 0.4 - Early Prototype ✅ RUNNING
+## Current Phase: Phase 0.5 - Debug Logging System ✅ IMPLEMENTED
 
 ### Build Status
 - ✅ **Compiles successfully** (`cargo build` passes)
 - ✅ **Application launches** without panics
+- ✅ **Logging system active** (tracing-based)
 - ⚠️ Dead code warnings (expected - scaffolding for future phases)
+
+---
+
+## Debug Logging
+
+Run with environment variable to control log output:
+
+```bash
+# Default (info level)
+cargo run
+
+# Full debug output
+ICED_BUILDER_LOG=debug cargo run
+
+# Specific subsystems
+ICED_BUILDER_LOG=iced_builder::app::selection=debug cargo run
+ICED_BUILDER_LOG=iced_builder::codegen=trace cargo run
+```
+
+### Log Targets
+| Target | Description |
+|--------|-------------|
+| `iced_builder::app` | Application lifecycle |
+| `iced_builder::app::message` | Message handling |
+| `iced_builder::app::selection` | Selection changes |
+| `iced_builder::app::tree` | Widget tree modifications |
+| `iced_builder::codegen` | Code generation |
+| `iced_builder::io` | File operations |
+| `iced_builder::ui::*` | UI component events |
 
 ---
 
@@ -32,7 +62,8 @@
 
 | Component | Status | File(s) |
 |-----------|--------|---------|
-| Cargo.toml | ✅ | Dependencies: iced 0.13.1, serde, ron, toml, uuid, rfd, thiserror, anyhow, regex |
+| Cargo.toml | ✅ | Dependencies: iced 0.13.1, serde, ron, toml, uuid, rfd, thiserror, anyhow, regex, tracing |
+| Logging System | ✅ | `src/logging.rs` with tracing-subscriber |
 | Model Layer | ✅ | `src/model/layout.rs`, `project.rs`, `history.rs` |
 | UI Components | ✅ | `src/ui/palette.rs`, `canvas.rs`, `inspector.rs`, `tree_view.rs` |
 | Code Generator | ✅ | `src/codegen/generator.rs` |
@@ -45,7 +76,8 @@
 
 ```
 src/
-├── main.rs          # Entry point, Iced bootstrap
+├── main.rs          # Entry point, logging init, Iced bootstrap
+├── logging.rs       # Tracing setup with env-filter
 ├── app.rs           # App struct, Message enum, update/view
 ├── model/
 │   ├── layout.rs    # Layout AST (12 widget types)

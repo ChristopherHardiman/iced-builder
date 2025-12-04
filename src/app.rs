@@ -94,8 +94,11 @@ impl App {
 
     /// Update application state based on a message.
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        tracing::debug!(target: "iced_builder::app::message", ?message, "Processing message");
+        
         match message {
             Message::NewProject => {
+                tracing::info!(target: "iced_builder::app", "Creating new project");
                 // Create a new project with default layout
                 let config = ProjectConfig::default();
                 let project = Project::new(std::path::PathBuf::from("."), config);
@@ -105,12 +108,14 @@ impl App {
             }
 
             Message::OpenProject => {
+                tracing::info!(target: "iced_builder::app", "Open project requested");
                 // TODO: Open file dialog
                 self.status_message = Some("Open project not yet implemented".to_string());
                 Task::none()
             }
 
             Message::SaveProject => {
+                tracing::info!(target: "iced_builder::app", "Saving project");
                 if let Some(project) = &mut self.project {
                     project.mark_saved();
                     self.status_message = Some("Project saved".to_string());
@@ -119,9 +124,11 @@ impl App {
             }
 
             Message::ExportCode => {
+                tracing::info!(target: "iced_builder::codegen", "Exporting code");
                 if let Some(project) = &self.project {
                     let code = crate::codegen::generate_code(&project.layout, &project.config);
                     let formatted = crate::util::try_format_rust_code(&code);
+                    tracing::debug!(target: "iced_builder::codegen", code_length = formatted.len(), "Code generated");
                     // For now, just print to console
                     println!("Generated code:\n{}", formatted);
                     self.status_message = Some("Code exported (see console)".to_string());
@@ -132,10 +139,12 @@ impl App {
             Message::ProjectOpened(result) => {
                 match result {
                     Ok(project) => {
+                        tracing::info!(target: "iced_builder::app", name = %project.layout.name, "Project opened");
                         self.project = Some(project);
                         self.status_message = Some("Project opened".to_string());
                     }
                     Err(e) => {
+                        tracing::error!(target: "iced_builder::app", error = %e, "Failed to open project");
                         self.status_message = Some(format!("Failed to open project: {}", e));
                     }
                 }
@@ -143,13 +152,24 @@ impl App {
             }
 
             Message::SelectComponent(id) => {
+                tracing::debug!(target: "iced_builder::app::selection", %id, "Component selected");
                 if let Some(project) = &mut self.project {
                     project.selected_id = Some(id);
+                    
+                    // Log details about the selected node
+                    if let Some(node) = project.find_node(id) {
+                        tracing::debug!(
+                            target: "iced_builder::app::selection",
+                            widget_type = ?std::mem::discriminant(&node.widget),
+                            "Selected node details"
+                        );
+                    }
                 }
                 Task::none()
             }
 
             Message::DeselectComponent => {
+                tracing::debug!(target: "iced_builder::app::selection", "Component deselected");
                 if let Some(project) = &mut self.project {
                     project.selected_id = None;
                 }
@@ -157,16 +177,27 @@ impl App {
             }
 
             Message::PaletteItemClicked(kind) => {
+                tracing::info!(target: "iced_builder::app::tree", ?kind, "Adding widget from palette");
                 if let Some(project) = &mut self.project {
                     // Push history before modification
                     project.history.push(project.layout.clone());
 
                     // Create the new node
                     let new_node = create_node_for_kind(kind);
+                    tracing::debug!(
+                        target: "iced_builder::app::tree", 
+                        node_id = %new_node.id, 
+                        "Created new node"
+                    );
 
                     // Add to root (or selected container)
                     if let Some(children) = project.layout.root.children_mut() {
                         children.push(new_node);
+                        tracing::debug!(
+                            target: "iced_builder::app::tree",
+                            child_count = children.len(),
+                            "Added to root children"
+                        );
                     }
 
                     project.rebuild_index();
@@ -178,7 +209,8 @@ impl App {
 
             Message::DeleteSelected => {
                 if let Some(project) = &mut self.project {
-                    if project.selected_id.is_some() {
+                    if let Some(id) = project.selected_id {
+                        tracing::info!(target: "iced_builder::app::tree", %id, "Delete requested");
                         // TODO: Actually delete the selected component
                         project.selected_id = None;
                         self.status_message = Some("Delete not yet implemented".to_string());
@@ -188,10 +220,12 @@ impl App {
             }
 
             Message::Undo => {
+                tracing::debug!(target: "iced_builder::app", "Undo requested");
                 if let Some(project) = &mut self.project {
                     if let Some(previous) = project.history.undo(project.layout.clone()) {
                         project.layout = previous;
                         project.rebuild_index();
+                        tracing::info!(target: "iced_builder::app", "Undo applied");
                         self.status_message = Some("Undo".to_string());
                     }
                 }
@@ -199,10 +233,12 @@ impl App {
             }
 
             Message::Redo => {
+                tracing::debug!(target: "iced_builder::app", "Redo requested");
                 if let Some(project) = &mut self.project {
                     if let Some(next) = project.history.redo(project.layout.clone()) {
                         project.layout = next;
                         project.rebuild_index();
+                        tracing::info!(target: "iced_builder::app", "Redo applied");
                         self.status_message = Some("Redo".to_string());
                     }
                 }
@@ -210,11 +246,13 @@ impl App {
             }
 
             Message::SetMode(mode) => {
+                tracing::debug!(target: "iced_builder::app", ?mode, "Mode changed");
                 self.mode = mode;
                 Task::none()
             }
 
             Message::UpdateTextContent(id, content) => {
+                tracing::debug!(target: "iced_builder::ui::inspector", %id, "Updating text content");
                 self.update_node_property(id, |node| {
                     if let crate::model::layout::WidgetType::Text { content: c, .. } = &mut node.widget {
                         *c = content;
@@ -224,6 +262,7 @@ impl App {
             }
 
             Message::UpdateButtonLabel(id, label) => {
+                tracing::debug!(target: "iced_builder::ui::inspector", %id, "Updating button label");
                 self.update_node_property(id, |node| {
                     if let crate::model::layout::WidgetType::Button { label: l, .. } = &mut node.widget {
                         *l = label;
@@ -233,6 +272,7 @@ impl App {
             }
 
             Message::UpdateMessageStub(id, stub) => {
+                tracing::debug!(target: "iced_builder::ui::inspector", %id, "Updating message stub");
                 self.update_node_property(id, |node| {
                     match &mut node.widget {
                         crate::model::layout::WidgetType::Button { message_stub, .. } => *message_stub = stub,

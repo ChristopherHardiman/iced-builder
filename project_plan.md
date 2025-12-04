@@ -61,6 +61,60 @@ Before proceeding with full implementation, build a minimal prototype to validat
 
 This de-risks Phase 6 (Canvas) by confirming the core UX assumption early.
 
+### 0.5 Debug Logging System
+
+A structured logging system to aid development and debugging of canvas rendering vs generated code discrepancies.
+
+#### Dependencies
+- `tracing = "0.1"` - Structured logging with spans and events
+- `tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }` - Console output with filtering
+
+#### Module: `src/logging.rs`
+- `init()` function called at start of `main()` before Iced bootstrap
+- Environment variable control: `ICED_BUILDER_LOG=level`
+- Predefined targets for filtering:
+  - `iced_builder::app` - Application lifecycle events
+  - `iced_builder::app::message` - Message handling in update()
+  - `iced_builder::app::selection` - Component selection changes
+  - `iced_builder::app::tree` - Widget tree modifications
+  - `iced_builder::codegen` - Code generation events
+  - `iced_builder::io` - File I/O operations
+  - `iced_builder::ui::canvas` - Canvas rendering
+  - `iced_builder::ui::inspector` - Property changes
+  - `iced_builder::ui::palette` - Palette interactions
+
+#### Log Levels
+| Level | Usage |
+|-------|-------|
+| `error` | Critical failures preventing operation |
+| `warn` | Potential issues or unexpected conditions |
+| `info` | High-level events (startup, file ops, widget add/remove) |
+| `debug` | Detailed operations (message handling, state changes) |
+| `trace` | Very detailed (widget rendering, AST traversal) |
+
+#### Usage Examples
+```bash
+# Default (info level)
+cargo run
+
+# Full debug output
+ICED_BUILDER_LOG=debug cargo run
+
+# Only selection and tree events
+ICED_BUILDER_LOG=iced_builder::app::selection=debug,iced_builder::app::tree=debug cargo run
+
+# Trace code generation
+ICED_BUILDER_LOG=iced_builder::codegen=trace cargo run
+```
+
+#### Key Logging Points
+- All `Message` variants in `update()` with structured fields
+- Selection changes with component ID and widget type
+- Widget additions with node ID and parent info
+- Code generation start/completion with output size
+- File save/load operations with paths
+- Undo/redo operations
+
 ---
 
 ## Phase 1: Data Model ("Layout AST")

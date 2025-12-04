@@ -10,6 +10,8 @@ use std::fmt::Write;
 
 /// Generate Rust code from a layout document.
 pub fn generate_code(layout: &LayoutDocument, config: &ProjectConfig) -> String {
+    tracing::info!(target: "iced_builder::codegen", layout_name = %layout.name, "Starting code generation");
+    
     let mut output = String::new();
 
     // Header comment
@@ -47,6 +49,7 @@ pub fn generate_code(layout: &LayoutDocument, config: &ProjectConfig) -> String 
     .unwrap();
 
     // Generate the widget tree
+    tracing::debug!(target: "iced_builder::codegen", "Generating widget tree");
     let widget_code = generate_node(&layout.root, 1);
     writeln!(output, "{}", widget_code).unwrap();
 
