@@ -1,0 +1,5 @@
+output_file = "src/ui/layout_generated.rs"
+message_type = "crate::Message"
+state_type = "crate::AppState"
+layout_files = []
+format_output = true

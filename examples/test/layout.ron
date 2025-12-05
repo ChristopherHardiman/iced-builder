@@ -1,0 +1,23 @@
+LayoutDocument(
+    version: 1,
+    name: "Untitled",
+    root: LayoutNode(
+        id: ComponentId("f06bcda4-6e67-491e-bf31-b98d43495d2c"),
+        widget: Column(
+            children: [],
+            attrs: ContainerAttrs(
+                padding: PaddingSpec(
+                    top: 0.0,
+                    right: 0.0,
+                    bottom: 0.0,
+                    left: 0.0,
+                ),
+                spacing: 0.0,
+                align_x: Start,
+                align_y: Start,
+                width: Shrink,
+                height: Shrink,
+            ),
+        ),
+    ),
+)
