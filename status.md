@@ -2,7 +2,7 @@
 
 **Last Updated:** December 4, 2025
 
-## Current Phase: Phase 7 - Property Inspector Improvements ✅ COMPLETE
+## Current Phase: Phase 8 - Polish ✅ COMPLETE
 
 ### Build Status
 - ✅ **Compiles successfully** (`cargo build` passes)
@@ -53,7 +53,7 @@ ICED_BUILDER_LOG=iced_builder::codegen=trace cargo run
 | Tree view | ✅ | Shows hierarchy below canvas |
 | Status bar | ✅ | Shows status messages |
 | New Project (Ctrl+N) | ✅ | Creates empty Column layout |
-| Keyboard shortcuts | ✅ | Ctrl+N, Ctrl+S, Ctrl+Z, Ctrl+Y, Delete, Escape |
+| Keyboard shortcuts | ✅ | Full navigation and editing suite |
 | Toolbar buttons | ✅ | New Project, Open Project, Save, Export Code |
 
 ---
@@ -102,17 +102,49 @@ src/
 
 ## Upcoming Work
 
-### Phase 7: Property Inspector Improvements
-- [x] Dynamic form generation
-- [x] Length variant picker (Fill, Shrink, Fixed, FillPortion)
-- [x] Alignment pickers (X and Y)
-- [x] Color picker from predefined palette
-- [x] Font size editing for Text widgets
+### Phase 9+: Future Enhancements
+- [ ] Import existing Iced code
+- [ ] Advanced themes
+- [ ] Custom widget library
+- [ ] Drag-and-drop reordering
 
-### Phase 8: Polish
-- [ ] Error handling improvements
-- [ ] Performance optimization
-- [ ] Keyboard shortcuts refinement
+---
+
+## Phase 8 Completed Features
+
+### 8.1 Keyboard Shortcuts Refinement
+| Shortcut | Action | Status |
+|----------|--------|--------|
+| Ctrl+N | New Project | ✅ |
+| Ctrl+O | Open Project | ✅ |
+| Ctrl+S | Save Project | ✅ |
+| Ctrl+E | Export Code | ✅ |
+| Ctrl+Z | Undo | ✅ |
+| Ctrl+Shift+Z / Ctrl+Y | Redo | ✅ |
+| Ctrl+D | Duplicate Selected | ✅ |
+| Arrow Down | Select Next Sibling | ✅ |
+| Arrow Up | Select Previous Sibling | ✅ |
+| Arrow Left | Select Parent | ✅ |
+| Arrow Right | Select First Child | ✅ |
+| Delete | Delete Selected | ✅ |
+| Escape | Deselect | ✅ |
+
+### 8.2 Tree Navigation Methods
+| Method | Status | Notes |
+|--------|--------|-------|
+| `get_parent()` | ✅ | Navigate to parent container |
+| `get_first_child()` | ✅ | Navigate into first child |
+| `get_next_sibling()` | ✅ | Navigate to next sibling |
+| `get_previous_sibling()` | ✅ | Navigate to previous sibling |
+| `duplicate_node()` | ✅ | Clone node with new IDs |
+| `regenerate_ids()` | ✅ | Give fresh IDs to cloned tree |
+
+### 8.3 Error Handling Improvements
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Path-based navigation | ✅ | Uses node_index for efficient traversal |
+| Bounds checking | ✅ | Safe sibling access |
+| Root node protection | ✅ | Cannot duplicate/navigate past root |
 
 ---
 

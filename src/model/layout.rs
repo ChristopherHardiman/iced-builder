@@ -190,6 +190,28 @@ impl LayoutNode {
         }
     }
 
+    /// Regenerate the ID for this node and all its children.
+    /// Used when duplicating a node to ensure unique IDs.
+    pub fn regenerate_ids(&mut self) {
+        self.id = ComponentId::new();
+        match &mut self.widget {
+            WidgetType::Column { children, .. }
+            | WidgetType::Row { children, .. }
+            | WidgetType::Stack { children, .. } => {
+                for child in children {
+                    child.regenerate_ids();
+                }
+            }
+            WidgetType::Container { child, .. }
+            | WidgetType::Scrollable { child, .. } => {
+                if let Some(c) = child {
+                    c.regenerate_ids();
+                }
+            }
+            _ => {} // Leaf nodes only need their own ID regenerated
+        }
+    }
+
     /// Get children of this node (if it's a container).
     pub fn children(&self) -> Option<&Vec<LayoutNode>> {
         match &self.widget {

@@ -42,12 +42,17 @@ pub enum Message {
     // Selection
     SelectComponent(ComponentId),
     DeselectComponent,
+    SelectNext,
+    SelectPrevious,
+    SelectParent,
+    SelectFirstChild,
 
     // Palette
     PaletteItemClicked(WidgetKind),
 
     // Component operations
     DeleteSelected,
+    DuplicateSelected,
 
     // Undo/Redo
     Undo,
@@ -259,6 +264,46 @@ impl App {
                 Task::none()
             }
 
+            Message::SelectNext => {
+                if let Some(project) = &mut self.project {
+                    if let Some(next_id) = project.get_next_sibling() {
+                        project.selected_id = Some(next_id);
+                        self.status_message = Some("Selected next sibling".to_string());
+                    }
+                }
+                Task::none()
+            }
+
+            Message::SelectPrevious => {
+                if let Some(project) = &mut self.project {
+                    if let Some(prev_id) = project.get_previous_sibling() {
+                        project.selected_id = Some(prev_id);
+                        self.status_message = Some("Selected previous sibling".to_string());
+                    }
+                }
+                Task::none()
+            }
+
+            Message::SelectParent => {
+                if let Some(project) = &mut self.project {
+                    if let Some(parent_id) = project.get_parent() {
+                        project.selected_id = Some(parent_id);
+                        self.status_message = Some("Selected parent".to_string());
+                    }
+                }
+                Task::none()
+            }
+
+            Message::SelectFirstChild => {
+                if let Some(project) = &mut self.project {
+                    if let Some(child_id) = project.get_first_child() {
+                        project.selected_id = Some(child_id);
+                        self.status_message = Some("Selected first child".to_string());
+                    }
+                }
+                Task::none()
+            }
+
             Message::PaletteItemClicked(kind) => {
                 tracing::info!(target: "iced_builder::app::tree", ?kind, "Adding widget from palette");
                 if let Some(project) = &mut self.project {
@@ -331,6 +376,31 @@ impl App {
                             let _ = project.history.undo(project.layout.clone());
                             tracing::warn!(target: "iced_builder::app::tree", %id, "Failed to delete component");
                             self.status_message = Some("Cannot delete this component".to_string());
+                        }
+                    }
+                }
+                Task::none()
+            }
+
+            Message::DuplicateSelected => {
+                if let Some(project) = &mut self.project {
+                    if let Some(id) = project.selected_id {
+                        tracing::info!(target: "iced_builder::app::tree", %id, "Duplicate requested");
+                        
+                        // Push history before modification
+                        project.history.push(project.layout.clone());
+                        
+                        // Duplicate the selected node
+                        if let Some(new_id) = project.duplicate_node(id) {
+                            project.selected_id = Some(new_id);
+                            project.mark_dirty();
+                            tracing::info!(target: "iced_builder::app::tree", old_id = %id, new_id = %new_id, "Component duplicated");
+                            self.status_message = Some("Component duplicated".to_string());
+                        } else {
+                            // Undo the history push if duplication failed
+                            let _ = project.history.undo(project.layout.clone());
+                            tracing::warn!(target: "iced_builder::app::tree", %id, "Failed to duplicate component");
+                            self.status_message = Some("Cannot duplicate this component".to_string());
                         }
                     }
                 }
@@ -686,12 +756,29 @@ impl App {
 
         keyboard::on_key_press(|key, modifiers| {
             match (key.as_ref(), modifiers.command(), modifiers.shift()) {
+                // File operations
                 (keyboard::Key::Character("z"), true, false) => Some(Message::Undo),
                 (keyboard::Key::Character("z"), true, true) => Some(Message::Redo),
                 (keyboard::Key::Character("y"), true, false) => Some(Message::Redo),
                 (keyboard::Key::Character("s"), true, false) => Some(Message::SaveProject),
                 (keyboard::Key::Character("e"), true, false) => Some(Message::ExportCode),
                 (keyboard::Key::Character("n"), true, false) => Some(Message::NewProject),
+                (keyboard::Key::Character("o"), true, false) => Some(Message::OpenProject),
+                (keyboard::Key::Character("d"), true, false) => Some(Message::DuplicateSelected),
+                // Navigation
+                (keyboard::Key::Named(keyboard::key::Named::ArrowDown), false, false) => {
+                    Some(Message::SelectNext)
+                }
+                (keyboard::Key::Named(keyboard::key::Named::ArrowUp), false, false) => {
+                    Some(Message::SelectPrevious)
+                }
+                (keyboard::Key::Named(keyboard::key::Named::ArrowLeft), false, false) => {
+                    Some(Message::SelectParent)
+                }
+                (keyboard::Key::Named(keyboard::key::Named::ArrowRight), false, false) => {
+                    Some(Message::SelectFirstChild)
+                }
+                // Delete and deselect
                 (keyboard::Key::Named(keyboard::key::Named::Delete), false, false) => {
                     Some(Message::DeleteSelected)
                 }

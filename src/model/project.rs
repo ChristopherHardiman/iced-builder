@@ -688,6 +688,154 @@ impl Project {
             _ => false, // Not a container
         }
     }
+
+    // --- Navigation methods for keyboard shortcuts ---
+
+    /// Get the parent node of the currently selected node.
+    pub fn get_parent(&self) -> Option<ComponentId> {
+        let selected_id = self.selected_id?;
+        let path = self.node_index.get(&selected_id)?;
+        
+        // If path has only one element, parent is root
+        if path.is_empty() {
+            return None; // Already at root
+        }
+        
+        // Get parent path
+        let parent_path = &path[..path.len() - 1];
+        
+        if parent_path.is_empty() {
+            // Parent is root
+            return Some(self.layout.root.id);
+        }
+        
+        // Find parent by path
+        self.find_node_by_path(&self.layout.root, parent_path).map(|n| n.id)
+    }
+
+    /// Get the first child of the currently selected node.
+    pub fn get_first_child(&self) -> Option<ComponentId> {
+        let selected_id = self.selected_id?;
+        let node = self.find_node(selected_id)?;
+        
+        match &node.widget {
+            crate::model::layout::WidgetType::Column { children, .. }
+            | crate::model::layout::WidgetType::Row { children, .. }
+            | crate::model::layout::WidgetType::Stack { children, .. } => {
+                children.first().map(|c| c.id)
+            }
+            crate::model::layout::WidgetType::Container { child, .. }
+            | crate::model::layout::WidgetType::Scrollable { child, .. } => {
+                child.as_ref().map(|c| c.id)
+            }
+            _ => None,
+        }
+    }
+
+    /// Get the next sibling of the currently selected node.
+    pub fn get_next_sibling(&self) -> Option<ComponentId> {
+        let selected_id = self.selected_id?;
+        let path = self.node_index.get(&selected_id)?;
+        
+        if path.is_empty() {
+            return None; // Root has no siblings
+        }
+        
+        let parent_path = &path[..path.len() - 1];
+        let current_index = path[path.len() - 1];
+        
+        // Get parent's children
+        let parent = if parent_path.is_empty() {
+            &self.layout.root
+        } else {
+            self.find_node_by_path(&self.layout.root, parent_path)?
+        };
+        
+        let children = match &parent.widget {
+            crate::model::layout::WidgetType::Column { children, .. }
+            | crate::model::layout::WidgetType::Row { children, .. }
+            | crate::model::layout::WidgetType::Stack { children, .. } => children,
+            _ => return None,
+        };
+        
+        // Get next sibling
+        if current_index + 1 < children.len() {
+            Some(children[current_index + 1].id)
+        } else {
+            None
+        }
+    }
+
+    /// Get the previous sibling of the currently selected node.
+    pub fn get_previous_sibling(&self) -> Option<ComponentId> {
+        let selected_id = self.selected_id?;
+        let path = self.node_index.get(&selected_id)?;
+        
+        if path.is_empty() {
+            return None; // Root has no siblings
+        }
+        
+        let parent_path = &path[..path.len() - 1];
+        let current_index = path[path.len() - 1];
+        
+        if current_index == 0 {
+            return None; // Already first sibling
+        }
+        
+        // Get parent's children
+        let parent = if parent_path.is_empty() {
+            &self.layout.root
+        } else {
+            self.find_node_by_path(&self.layout.root, parent_path)?
+        };
+        
+        let children = match &parent.widget {
+            crate::model::layout::WidgetType::Column { children, .. }
+            | crate::model::layout::WidgetType::Row { children, .. }
+            | crate::model::layout::WidgetType::Stack { children, .. } => children,
+            _ => return None,
+        };
+        
+        Some(children[current_index - 1].id)
+    }
+
+    /// Duplicate a node and insert it as a sibling.
+    /// Returns the new node's ID if successful.
+    pub fn duplicate_node(&mut self, id: ComponentId) -> Option<ComponentId> {
+        let path = self.node_index.get(&id)?.clone();
+        
+        if path.is_empty() {
+            return None; // Cannot duplicate root
+        }
+        
+        // Clone the node
+        let original = self.find_node(id)?;
+        let mut cloned = original.clone();
+        cloned.regenerate_ids(); // Give new IDs to the clone and all its children
+        let new_id = cloned.id;
+        
+        // Find parent and insert after the original
+        let parent_path = &path[..path.len() - 1];
+        let current_index = path[path.len() - 1];
+        
+        let parent = if parent_path.is_empty() {
+            &mut self.layout.root
+        } else {
+            Self::find_node_by_path_mut_static(&mut self.layout.root, parent_path)?
+        };
+        
+        match &mut parent.widget {
+            crate::model::layout::WidgetType::Column { children, .. }
+            | crate::model::layout::WidgetType::Row { children, .. }
+            | crate::model::layout::WidgetType::Stack { children, .. } => {
+                children.insert(current_index + 1, cloned);
+            }
+            _ => return None, // Single-child containers can't have duplicates
+        }
+        
+        self.rebuild_index();
+        Some(new_id)
+    }
 }
 
 /// Project templates.
