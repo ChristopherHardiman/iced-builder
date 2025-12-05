@@ -2,11 +2,11 @@
 
 **Last Updated:** December 4, 2025
 
-## Current Phase: Phase 10 - File I/O ✅ COMPLETE
+## Current Phase: Phase 13 - Testing ✅ COMPLETE
 
 ### Build Status
 - ✅ **Compiles successfully** (`cargo build` passes)
-- ✅ **All tests pass** (49 tests)
+- ✅ **All tests pass** (81 tests)
 - ✅ **Application launches** without panics
 - ✅ **Logging system active** (tracing-based)
 - ⚠️ Dead code warnings (expected - scaffolding for future phases)
@@ -51,10 +51,11 @@ ICED_BUILDER_LOG=iced_builder::codegen=trace cargo run
 | Empty canvas view | ✅ | Shows placeholder when no project |
 | Inspector panel | ✅ | Shows placeholder when nothing selected |
 | Tree view | ✅ | Shows hierarchy below canvas |
-| Status bar | ✅ | Shows status messages |
+| Status bar | ✅ | Shows status messages + keyboard hints |
 | New Project (Ctrl+N) | ✅ | Creates empty Column layout |
 | Keyboard shortcuts | ✅ | Full navigation and editing suite |
-| Toolbar buttons | ✅ | New Project, Open Project, Save, Export Code |
+| Toolbar buttons | ✅ | New Project, Open Project, Save, Export Code, Preview Mode |
+| Preview mode | ✅ | Toggle with Ctrl+P or toolbar button |
 
 ---
 
@@ -87,7 +88,7 @@ src/
 │   └── history.rs   # Undo/redo (50-state limit)
 ├── ui/
 │   ├── palette.rs   # Widget palette sidebar
-│   ├── canvas.rs    # Design canvas with selection
+│   ├── canvas.rs    # Design canvas with selection + preview modes
 │   ├── inspector.rs # Property editor
 │   └── tree_view.rs # Hierarchy view
 ├── codegen/
@@ -102,13 +103,97 @@ src/
 
 ## Upcoming Work
 
-### Phase 11+: Future Enhancements
-- [ ] Keyboard shortcuts & UX polish refinements
-- [ ] Preview mode (stretch goal)
+### Phase 14+: Future Enhancements
+- [ ] CI/CD and release automation
 - [ ] Import existing Iced code
 - [ ] Advanced themes
 - [ ] Custom widget library
 - [ ] Drag-and-drop reordering
+
+---
+
+## Phase 13 Completed Features
+
+### 13.1 Test Coverage Expansion
+| Module | Tests Added | Total |
+|--------|-------------|-------|
+| codegen/generator | 12 new | 17 |
+| model/history | 6 new | 9 |
+| model/layout | 13 new | 22 |
+| util | 4 new | 7 |
+| **Total** | **35 new** | **81** |
+
+### 13.2 New Test Categories
+| Category | Tests |
+|----------|-------|
+| Code generation (all widget types) | ✅ |
+| History management (limits, cycles) | ✅ |
+| Validation (all binding types) | ✅ |
+| Identifier validation (edge cases) | ✅ |
+| Serialization (RON, JSON) | ✅ |
+
+---
+
+## Phase 12 Completed Features
+
+### 12.1 Preview Mode
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Mode toggle button | ✅ | In toolbar, shows current mode |
+| Ctrl+P keyboard shortcut | ✅ | Toggle between Design/Preview |
+| Mode indicator in status bar | ✅ | Shows [Design] or [Preview] |
+| Visual canvas distinction | ✅ | Slightly different background in Preview |
+
+### 12.2 Mode Behavior
+| Mode | Widget Behavior |
+|------|-----------------|
+| Design | Click to select, widgets non-functional |
+| Preview | Widgets interactive (but changes not saved) |
+
+### 12.3 Widget Differences by Mode
+| Widget | Design Mode | Preview Mode |
+|--------|-------------|--------------|
+| Button | Selects on click | Clickable (Noop) |
+| TextInput | Read-only | Accepts input (not saved) |
+| Checkbox | Non-togglable | Toggleable (not saved) |
+| Slider | Static at midpoint | Draggable (not saved) |
+
+---
+
+## Phase 11 Completed Features
+
+### 11.1 Keyboard Shortcuts Enhancement
+| Shortcut | Action | Status |
+|----------|--------|--------|
+| Ctrl+N | New Project | ✅ |
+| Ctrl+O | Open Project | ✅ |
+| Ctrl+S | Save Project | ✅ |
+| Ctrl+E | Export Code | ✅ |
+| Ctrl+Z | Undo | ✅ |
+| Ctrl+Shift+Z / Ctrl+Y | Redo | ✅ |
+| Ctrl+D | Duplicate Selected | ✅ |
+| Ctrl+P | Toggle Preview Mode | ✅ (new) |
+| Arrow Down | Select Next Sibling | ✅ |
+| Arrow Up | Select Previous Sibling | ✅ |
+| Arrow Left | Select Parent | ✅ |
+| Arrow Right | Select First Child | ✅ |
+| Delete | Delete Selected | ✅ |
+| Backspace | Delete Selected | ✅ (new) |
+| Escape | Deselect | ✅ |
+
+### 11.2 Status Bar Enhancements
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Mode indicator | ✅ | Shows [Design] or [Preview] |
+| Keyboard shortcuts hint | ✅ | Shows navigation hints on right |
+| Undo/Redo availability | ✅ | Shows Ctrl+Z/Ctrl+Y when available |
+| Dirty indicator | ✅ | Shows [unsaved] when modified |
+
+### 11.3 Toolbar Improvements
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Mode toggle button | ✅ | Shows "Preview (Ctrl+P)" or "Design (Ctrl+P)" |
+| Spacer before mode toggle | ✅ | Separates file ops from mode toggle |
 
 ---
 

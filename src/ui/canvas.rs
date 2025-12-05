@@ -9,7 +9,7 @@ use iced::widget::{
 };
 use iced::{Border, Color, Element, Length};
 
-use crate::app::Message;
+use crate::app::{EditorMode, Message};
 use crate::model::{
     layout::{AlignmentSpec, LengthSpec, WidgetType},
     ComponentId, LayoutNode,
@@ -23,15 +23,21 @@ impl Canvas {
     pub fn view<'a>(
         root: &'a LayoutNode,
         selected_id: Option<ComponentId>,
+        mode: EditorMode,
     ) -> Element<'a, Message> {
         // Render the root node, but override height to Shrink for scrollable compatibility
-        let content = Self::render_node_for_canvas(root, selected_id, true);
+        let content = Self::render_node_for_canvas(root, selected_id, true, mode);
+
+        let background_color = match mode {
+            EditorMode::Design => Color::from_rgb(0.15, 0.15, 0.15),
+            EditorMode::Preview => Color::from_rgb(0.1, 0.1, 0.12), // Slightly different for preview
+        };
 
         container(scrollable(container(content).padding(20).width(Length::Fill)))
             .width(Length::Fill)
             .height(Length::Fill)
-            .style(|_theme| container::Style {
-                background: Some(iced::Background::Color(Color::from_rgb(0.15, 0.15, 0.15))),
+            .style(move |_theme| container::Style {
+                background: Some(iced::Background::Color(background_color)),
                 ..Default::default()
             })
             .into()
@@ -59,16 +65,23 @@ impl Canvas {
         node: &'a LayoutNode,
         selected_id: Option<ComponentId>,
         is_root: bool,
+        mode: EditorMode,
     ) -> Element<'a, Message> {
         let is_selected = selected_id == Some(node.id);
-        let widget = Self::render_widget_for_canvas(node, selected_id, is_root);
+        let widget = Self::render_widget_for_canvas(node, selected_id, is_root, mode);
 
-        // Wrap in mouse_area for selection
-        let selectable = mouse_area(widget).on_press(Message::SelectComponent(node.id));
+        // In design mode, wrap in mouse_area for selection
+        // In preview mode, don't wrap (let widgets behave normally)
+        let wrapped: Element<'a, Message> = match mode {
+            EditorMode::Design => {
+                mouse_area(widget).on_press(Message::SelectComponent(node.id)).into()
+            }
+            EditorMode::Preview => widget,
+        };
 
-        // Apply selection styling if selected
-        if is_selected {
-            container(selectable)
+        // Apply selection styling if selected (only in design mode)
+        if is_selected && mode == EditorMode::Design {
+            container(wrapped)
                 .style(|_theme| container::Style {
                     border: Border {
                         color: Color::from_rgb(0.2, 0.6, 1.0),
@@ -79,21 +92,26 @@ impl Canvas {
                 })
                 .into()
         } else {
-            selectable.into()
+            wrapped
         }
     }
 
     /// Recursively render a layout node.
-    fn render_node<'a>(node: &'a LayoutNode, selected_id: Option<ComponentId>) -> Element<'a, Message> {
+    fn render_node<'a>(node: &'a LayoutNode, selected_id: Option<ComponentId>, mode: EditorMode) -> Element<'a, Message> {
         let is_selected = selected_id == Some(node.id);
-        let widget = Self::render_widget(node, selected_id);
+        let widget = Self::render_widget(node, selected_id, mode);
 
-        // Wrap in mouse_area for selection
-        let selectable = mouse_area(widget).on_press(Message::SelectComponent(node.id));
+        // In design mode, wrap in mouse_area for selection
+        let wrapped: Element<'a, Message> = match mode {
+            EditorMode::Design => {
+                mouse_area(widget).on_press(Message::SelectComponent(node.id)).into()
+            }
+            EditorMode::Preview => widget,
+        };
 
-        // Apply selection styling if selected
-        if is_selected {
-            container(selectable)
+        // Apply selection styling if selected (only in design mode)
+        if is_selected && mode == EditorMode::Design {
+            container(wrapped)
                 .style(|_theme| container::Style {
                     border: Border {
                         color: Color::from_rgb(0.2, 0.6, 1.0),
@@ -104,7 +122,7 @@ impl Canvas {
                 })
                 .into()
         } else {
-            selectable.into()
+            wrapped
         }
     }
 
@@ -113,12 +131,13 @@ impl Canvas {
         node: &'a LayoutNode,
         selected_id: Option<ComponentId>,
         is_root: bool,
+        mode: EditorMode,
     ) -> Element<'a, Message> {
         match &node.widget {
             WidgetType::Column { children, attrs } => {
                 let mut col = column![];
                 for child in children {
-                    col = col.push(Self::render_node(child, selected_id));
+                    col = col.push(Self::render_node(child, selected_id, mode));
                 }
                 // For root node, use Shrink height to work inside scrollable
                 let height = if is_root {
@@ -140,7 +159,7 @@ impl Canvas {
             WidgetType::Row { children, attrs } => {
                 let mut r = row![];
                 for child in children {
-                    r = r.push(Self::render_node(child, selected_id));
+                    r = r.push(Self::render_node(child, selected_id, mode));
                 }
                 let height = if is_root {
                     Length::Shrink
@@ -159,17 +178,17 @@ impl Canvas {
             }
 
             // For other widget types, delegate to render_widget
-            _ => Self::render_widget(node, selected_id),
+            _ => Self::render_widget(node, selected_id, mode),
         }
     }
 
     /// Render the actual widget based on its type.
-    fn render_widget<'a>(node: &'a LayoutNode, selected_id: Option<ComponentId>) -> Element<'a, Message> {
+    fn render_widget<'a>(node: &'a LayoutNode, selected_id: Option<ComponentId>, mode: EditorMode) -> Element<'a, Message> {
         match &node.widget {
             WidgetType::Column { children, attrs } => {
                 let mut col = column![];
                 for child in children {
-                    col = col.push(Self::render_node(child, selected_id));
+                    col = col.push(Self::render_node(child, selected_id, mode));
                 }
                 col.spacing(attrs.spacing)
                     .padding(iced::Padding::new(attrs.padding.top)
@@ -185,7 +204,7 @@ impl Canvas {
             WidgetType::Row { children, attrs } => {
                 let mut r = row![];
                 for child in children {
-                    r = r.push(Self::render_node(child, selected_id));
+                    r = r.push(Self::render_node(child, selected_id, mode));
                 }
                 r.spacing(attrs.spacing)
                     .padding(iced::Padding::new(attrs.padding.top)
@@ -200,7 +219,7 @@ impl Canvas {
 
             WidgetType::Container { child, attrs } => {
                 let content: Element<'a, Message> = match child {
-                    Some(c) => Self::render_node(c, selected_id),
+                    Some(c) => Self::render_node(c, selected_id, mode),
                     None => text("(empty)").color(Color::from_rgb(0.5, 0.5, 0.5)).into(),
                 };
                 container(content)
@@ -217,7 +236,7 @@ impl Canvas {
 
             WidgetType::Scrollable { child, attrs } => {
                 let content: Element<'a, Message> = match child {
-                    Some(c) => Self::render_node(c, selected_id),
+                    Some(c) => Self::render_node(c, selected_id, mode),
                     None => text("(empty)").color(Color::from_rgb(0.5, 0.5, 0.5)).into(),
                 };
                 scrollable(content)
@@ -230,7 +249,7 @@ impl Canvas {
                 // Use Iced's stack widget for overlays
                 let layers: Vec<Element<'a, Message>> = children
                     .iter()
-                    .map(|child| Self::render_node(child, selected_id))
+                    .map(|child| Self::render_node(child, selected_id, mode))
                     .collect();
                 
                 stack(layers)
@@ -248,25 +267,55 @@ impl Canvas {
             }
 
             WidgetType::Button { label, .. } => {
-                // In design mode, buttons always select instead of firing their action
-                button(text(label.as_str()))
-                    .on_press(Message::SelectComponent(node.id))
-                    .into()
+                match mode {
+                    EditorMode::Design => {
+                        // In design mode, buttons select instead of firing their action
+                        button(text(label.as_str()))
+                            .on_press(Message::SelectComponent(node.id))
+                            .into()
+                    }
+                    EditorMode::Preview => {
+                        // In preview mode, buttons show as clickable but don't do anything
+                        button(text(label.as_str()))
+                            .on_press(Message::Noop)
+                            .into()
+                    }
+                }
             }
 
             WidgetType::TextInput { placeholder, .. } => {
-                // In design mode, text inputs are read-only
-                text_input(placeholder.as_str(), "")
-                    .into()
+                match mode {
+                    EditorMode::Design => {
+                        // In design mode, text inputs are read-only
+                        text_input(placeholder.as_str(), "")
+                            .into()
+                    }
+                    EditorMode::Preview => {
+                        // In preview mode, text inputs can be typed into (but changes aren't saved)
+                        text_input(placeholder.as_str(), "")
+                            .on_input(|_| Message::Noop)
+                            .into()
+                    }
+                }
             }
 
             WidgetType::Checkbox { label, .. } => {
-                // In design mode, checkboxes don't toggle
-                checkbox(label.as_str(), false).into()
+                match mode {
+                    EditorMode::Design => {
+                        // In design mode, checkboxes don't toggle
+                        checkbox(label.as_str(), false).into()
+                    }
+                    EditorMode::Preview => {
+                        // In preview mode, checkboxes can be toggled (but state isn't saved)
+                        checkbox(label.as_str(), false)
+                            .on_toggle(|_| Message::Noop)
+                            .into()
+                    }
+                }
             }
 
             WidgetType::Slider { min, max, .. } => {
-                // In design mode, sliders don't change
+                // In both modes, sliders show at midpoint
                 let mid = (min + max) / 2.0;
                 slider(*min..=*max, mid, |_| Message::Noop).into()
             }

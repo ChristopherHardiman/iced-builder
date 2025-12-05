@@ -60,6 +60,7 @@ pub enum Message {
 
     // Mode
     SetMode(EditorMode),
+    TogglePreviewMode,
 
     // Property updates
     UpdateTextContent(ComponentId, String),
@@ -436,6 +437,23 @@ impl App {
             Message::SetMode(mode) => {
                 tracing::debug!(target: "iced_builder::app", ?mode, "Mode changed");
                 self.mode = mode;
+                self.status_message = Some(format!("Mode: {:?}", mode));
+                Task::none()
+            }
+
+            Message::TogglePreviewMode => {
+                self.mode = match self.mode {
+                    EditorMode::Design => {
+                        tracing::info!(target: "iced_builder::app", "Switching to Preview mode");
+                        self.status_message = Some("Preview mode - widgets are interactive".to_string());
+                        EditorMode::Preview
+                    }
+                    EditorMode::Preview => {
+                        tracing::info!(target: "iced_builder::app", "Switching to Design mode");
+                        self.status_message = Some("Design mode - click to select widgets".to_string());
+                        EditorMode::Design
+                    }
+                };
                 Task::none()
             }
 
@@ -665,7 +683,7 @@ impl App {
         let palette = Palette::view();
 
         let canvas: Element<Message> = match &self.project {
-            Some(project) => Canvas::view(&project.layout.root, project.selected_id),
+            Some(project) => Canvas::view(&project.layout.root, project.selected_id, self.mode),
             None => Canvas::view_empty(),
         };
 
@@ -703,6 +721,18 @@ impl App {
             Some(project) if project.dirty => " [unsaved]",
             _ => "",
         };
+        
+        // Mode indicator
+        let mode_text = match self.mode {
+            EditorMode::Design => "Design",
+            EditorMode::Preview => "Preview",
+        };
+
+        // Preview mode toggle button
+        let mode_button_label = match self.mode {
+            EditorMode::Design => "Preview (Ctrl+P)",
+            EditorMode::Preview => "Design (Ctrl+P)",
+        };
 
         // Toolbar with file operations
         let toolbar = container(
@@ -719,6 +749,12 @@ impl App {
                 button(text("Export Code").size(12))
                     .on_press(Message::ExportCode)
                     .padding([4, 8]),
+                // Spacer
+                iced::widget::horizontal_space(),
+                // Mode toggle
+                button(text(mode_button_label).size(12))
+                    .on_press(Message::TogglePreviewMode)
+                    .padding([4, 8]),
             ]
             .spacing(5),
         )
@@ -728,11 +764,18 @@ impl App {
             ..Default::default()
         });
 
-        // Status bar
+        // Status bar with mode indicator and keyboard hints
+        let shortcuts_hint = " | ↑↓←→: Navigate | Del: Delete | Ctrl+D: Duplicate";
         let status = container(
-            text(format!("{}{}{}", status_text, dirty_indicator, history_status))
-                .size(12)
-                .color(iced::Color::from_rgb(0.6, 0.6, 0.6)),
+            row![
+                text(format!("[{}] {}{}{}", mode_text, status_text, dirty_indicator, history_status))
+                    .size(12)
+                    .color(iced::Color::from_rgb(0.6, 0.6, 0.6)),
+                iced::widget::horizontal_space(),
+                text(shortcuts_hint)
+                    .size(11)
+                    .color(iced::Color::from_rgb(0.4, 0.4, 0.4)),
+            ]
         )
         .padding(5);
 
@@ -765,6 +808,8 @@ impl App {
                 (keyboard::Key::Character("n"), true, false) => Some(Message::NewProject),
                 (keyboard::Key::Character("o"), true, false) => Some(Message::OpenProject),
                 (keyboard::Key::Character("d"), true, false) => Some(Message::DuplicateSelected),
+                // Preview mode toggle
+                (keyboard::Key::Character("p"), true, false) => Some(Message::TogglePreviewMode),
                 // Navigation
                 (keyboard::Key::Named(keyboard::key::Named::ArrowDown), false, false) => {
                     Some(Message::SelectNext)
@@ -780,6 +825,9 @@ impl App {
                 }
                 // Delete and deselect
                 (keyboard::Key::Named(keyboard::key::Named::Delete), false, false) => {
+                    Some(Message::DeleteSelected)
+                }
+                (keyboard::Key::Named(keyboard::key::Named::Backspace), false, false) => {
                     Some(Message::DeleteSelected)
                 }
                 (keyboard::Key::Named(keyboard::key::Named::Escape), false, false) => {

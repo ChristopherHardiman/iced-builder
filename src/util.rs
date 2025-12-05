@@ -121,4 +121,40 @@ mod tests {
         assert!(!is_rust_keyword("foo"));
         assert!(!is_rust_keyword("myStruct"));
     }
+
+    #[test]
+    fn test_is_valid_rust_identifier_unicode() {
+        // ASCII only for identifiers
+        assert!(!is_valid_rust_identifier("föo"));
+        assert!(!is_valid_rust_identifier("名前"));
+    }
+
+    #[test]
+    fn test_is_valid_rust_identifier_edge_cases() {
+        assert!(is_valid_rust_identifier("_0"));
+        assert!(is_valid_rust_identifier("A"));
+        assert!(is_valid_rust_identifier("z"));
+        assert!(is_valid_rust_identifier("___"));
+        assert!(!is_valid_rust_identifier("0_"));
+    }
+
+    #[test]
+    fn test_try_format_rust_code() {
+        let code = "fn main() { println!(\"hello\"); }";
+        let result = try_format_rust_code(code);
+        // Should either be formatted or return original
+        assert!(result.contains("fn main"));
+    }
+
+    #[test]
+    fn test_rust_keywords_comprehensive() {
+        // Test a few more keywords
+        assert!(is_rust_keyword("async"));
+        assert!(is_rust_keyword("await"));
+        assert!(is_rust_keyword("dyn"));
+        assert!(is_rust_keyword("impl"));
+        assert!(is_rust_keyword("Self"));
+        assert!(is_rust_keyword("super"));
+        assert!(is_rust_keyword("crate"));
+    }
 }

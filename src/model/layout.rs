@@ -543,6 +543,15 @@ mod tests {
     }
 
     #[test]
+    fn test_component_id_display() {
+        let id = ComponentId::new();
+        let display = format!("{}", id);
+        assert!(!display.is_empty());
+        // UUID format check (basic)
+        assert!(display.contains('-'));
+    }
+
+    #[test]
     fn test_layout_document_default() {
         let doc = LayoutDocument::default();
         assert_eq!(doc.version, 1);
@@ -692,4 +701,147 @@ mod tests {
         assert_eq!(index.get(&child1_id), Some(&vec![0]));
         assert_eq!(index.get(&child2_id), Some(&vec![1]));
     }
+
+    #[test]
+    fn test_regenerate_ids() {
+        let mut node = LayoutNode::new(WidgetType::Column {
+            children: vec![
+                LayoutNode::new(WidgetType::Text {
+                    content: "Hello".to_string(),
+                    attrs: TextAttrs::default(),
+                }),
+            ],
+            attrs: ContainerAttrs::default(),
+        });
+        
+        let original_id = node.id;
+        let original_child_id = match &node.widget {
+            WidgetType::Column { children, .. } => children[0].id,
+            _ => panic!("Expected Column"),
+        };
+        
+        node.regenerate_ids();
+        
+        assert_ne!(node.id, original_id);
+        let new_child_id = match &node.widget {
+            WidgetType::Column { children, .. } => children[0].id,
+            _ => panic!("Expected Column"),
+        };
+        assert_ne!(new_child_id, original_child_id);
+    }
+
+    #[test]
+    fn test_layout_node_children() {
+        let node = LayoutNode::new(WidgetType::Column {
+            children: vec![
+                LayoutNode::new(WidgetType::Text {
+                    content: "Test".to_string(),
+                    attrs: TextAttrs::default(),
+                }),
+            ],
+            attrs: ContainerAttrs::default(),
+        });
+        
+        let children = node.children();
+        assert!(children.is_some());
+        assert_eq!(children.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_layout_node_children_leaf() {
+        let node = LayoutNode::new(WidgetType::Text {
+            content: "Test".to_string(),
+            attrs: TextAttrs::default(),
+        });
+        
+        assert!(node.children().is_none());
+    }
+
+    #[test]
+    fn test_padding_spec_zero() {
+        let padding = PaddingSpec::ZERO;
+        assert_eq!(padding.top, 0.0);
+        assert_eq!(padding.right, 0.0);
+        assert_eq!(padding.bottom, 0.0);
+        assert_eq!(padding.left, 0.0);
+    }
+
+    #[test]
+    fn test_padding_spec_uniform() {
+        let padding = PaddingSpec::uniform(10.0);
+        assert_eq!(padding.top, 10.0);
+        assert_eq!(padding.right, 10.0);
+        assert_eq!(padding.bottom, 10.0);
+        assert_eq!(padding.left, 10.0);
+    }
+
+    #[test]
+    fn test_length_spec_default() {
+        let length: LengthSpec = LengthSpec::default();
+        assert_eq!(length, LengthSpec::Shrink);
+    }
+
+    #[test]
+    fn test_container_attrs_default() {
+        let attrs = ContainerAttrs::default();
+        assert_eq!(attrs.padding, PaddingSpec::ZERO);
+        assert_eq!(attrs.spacing, 0.0);
+        assert_eq!(attrs.width, LengthSpec::Shrink);
+        assert_eq!(attrs.height, LengthSpec::Shrink);
+        assert_eq!(attrs.align_x, AlignmentSpec::Start);
+        assert_eq!(attrs.align_y, AlignmentSpec::Start);
+    }
+
+    #[test]
+    fn test_validate_checkbox_bindings() {
+        let mut doc = LayoutDocument::default();
+        doc.root = LayoutNode::new(WidgetType::Checkbox {
+            label: "Check".to_string(),
+            checked_binding: "is-checked".to_string(), // Invalid
+            message_stub: "OnToggle".to_string(),
+            attrs: CheckboxAttrs { spacing: 10.0 },
+        });
+        let errors = doc.validate();
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].message.contains("checked_binding"));
+    }
+
+    #[test]
+    fn test_validate_slider_bindings() {
+        let mut doc = LayoutDocument::default();
+        doc.root = LayoutNode::new(WidgetType::Slider {
+            min: 0.0,
+            max: 100.0,
+            value_binding: "my value".to_string(), // Invalid (has space)
+            message_stub: "OnChange".to_string(),
+            attrs: SliderAttrs::default(),
+        });
+        let errors = doc.validate();
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].message.contains("value_binding"));
+    }
+
+    #[test]
+    fn test_validate_pick_list_bindings() {
+        let mut doc = LayoutDocument::default();
+        doc.root = LayoutNode::new(WidgetType::PickList {
+            options: vec!["A".to_string()],
+            selected_binding: "selected".to_string(),
+            message_stub: "return".to_string(), // Invalid (keyword)
+            attrs: PickListAttrs::default(),
+        });
+        let errors = doc.validate();
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].message.contains("Rust keyword"));
+    }
+
+    #[test]
+    fn test_validation_error_display() {
+        let error = ValidationError::error("root.child", "Test error", ComponentId::new());
+        let display = format!("{}", error);
+        assert!(display.contains("Error"));
+        assert!(display.contains("root.child"));
+        assert!(display.contains("Test error"));
+    }
 }
+

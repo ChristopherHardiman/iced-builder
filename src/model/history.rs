@@ -152,4 +152,91 @@ mod tests {
         history.push(state2);
         assert!(!history.can_redo());
     }
+
+    #[test]
+    fn test_clear() {
+        let mut history = History::new();
+        history.push(make_doc("State 1"));
+        history.push(make_doc("State 2"));
+        
+        assert!(history.can_undo());
+        
+        history.clear();
+        
+        assert!(!history.can_undo());
+        assert!(!history.can_redo());
+        assert_eq!(history.undo_count(), 0);
+        assert_eq!(history.redo_count(), 0);
+    }
+
+    #[test]
+    fn test_undo_count_redo_count() {
+        let mut history = History::new();
+        
+        assert_eq!(history.undo_count(), 0);
+        assert_eq!(history.redo_count(), 0);
+        
+        history.push(make_doc("State 1"));
+        history.push(make_doc("State 2"));
+        
+        assert_eq!(history.undo_count(), 2);
+        assert_eq!(history.redo_count(), 0);
+        
+        history.undo(make_doc("Current"));
+        
+        assert_eq!(history.undo_count(), 1);
+        assert_eq!(history.redo_count(), 1);
+    }
+
+    #[test]
+    fn test_max_undo_limit() {
+        let mut history = History::new();
+        
+        // Push more than MAX_UNDO_STACK (50) states
+        for i in 0..60 {
+            history.push(make_doc(&format!("State {}", i)));
+        }
+        
+        // Should be capped at 50
+        assert_eq!(history.undo_count(), 50);
+    }
+
+    #[test]
+    fn test_undo_empty_returns_none() {
+        let mut history = History::new();
+        let result = history.undo(make_doc("Current"));
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_redo_empty_returns_none() {
+        let mut history = History::new();
+        let result = history.redo(make_doc("Current"));
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_multiple_undo_redo_cycles() {
+        let mut history = History::new();
+        
+        history.push(make_doc("A"));
+        history.push(make_doc("B"));
+        history.push(make_doc("C"));
+        
+        // Undo all
+        let c = history.undo(make_doc("D")).unwrap();
+        assert_eq!(c.name, "C");
+        let b = history.undo(c).unwrap();
+        assert_eq!(b.name, "B");
+        let a = history.undo(b).unwrap();
+        assert_eq!(a.name, "A");
+        
+        // Redo all
+        let b2 = history.redo(a).unwrap();
+        assert_eq!(b2.name, "B");
+        let c2 = history.redo(b2).unwrap();
+        assert_eq!(c2.name, "C");
+        let d = history.redo(c2).unwrap();
+        assert_eq!(d.name, "D");
+    }
 }

@@ -1497,7 +1497,7 @@ dependencies = [
 
 [[package]]
 name = "iced-builder"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "anyhow",
  "iced",

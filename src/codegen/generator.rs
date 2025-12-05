@@ -388,7 +388,7 @@ fn escape_string(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::layout::{ContainerAttrs, TextAttrs};
+    use crate::model::layout::{ButtonAttrs, ContainerAttrs, InputAttrs, TextAttrs, CheckboxAttrs, SliderAttrs};
 
     #[test]
     fn test_escape_string() {
@@ -466,4 +466,140 @@ mod tests {
         assert!(code.contains("stack"));
         assert!(code.contains("use iced::widget::{"));
     }
+
+    #[test]
+    fn test_generate_text_with_color() {
+        let node = LayoutNode::new(WidgetType::Text {
+            content: "Colored".to_string(),
+            attrs: TextAttrs {
+                font_size: 20.0,
+                color: Some([1.0, 0.0, 0.0, 1.0]),
+                horizontal_alignment: AlignmentSpec::Start,
+            },
+        });
+        
+        let code = generate_node(&node, 1);
+        assert!(code.contains("text(\"Colored\")"));
+        assert!(code.contains(".size(20)"));
+        assert!(code.contains(".color(Color::from_rgba"));
+    }
+
+    #[test]
+    fn test_generate_button() {
+        let node = LayoutNode::new(WidgetType::Button {
+            label: "Click Me".to_string(),
+            message_stub: "OnClick".to_string(),
+            attrs: ButtonAttrs::default(),
+        });
+        
+        let code = generate_node(&node, 1);
+        assert!(code.contains("button(text(\"Click Me\"))"));
+        assert!(code.contains(".on_press(Message::OnClick)"));
+    }
+
+    #[test]
+    fn test_generate_text_input() {
+        let node = LayoutNode::new(WidgetType::TextInput {
+            placeholder: "Enter name".to_string(),
+            value_binding: "username".to_string(),
+            message_stub: "UsernameChanged".to_string(),
+            attrs: InputAttrs::default(),
+        });
+        
+        let code = generate_node(&node, 1);
+        assert!(code.contains("text_input(\"Enter name\", &state.username)"));
+        assert!(code.contains(".on_input(Message::UsernameChanged)"));
+    }
+
+    #[test]
+    fn test_generate_checkbox() {
+        let node = LayoutNode::new(WidgetType::Checkbox {
+            label: "Accept terms".to_string(),
+            checked_binding: "accepted".to_string(),
+            message_stub: "ToggleAccept".to_string(),
+            attrs: CheckboxAttrs { spacing: 10.0 },
+        });
+        
+        let code = generate_node(&node, 1);
+        assert!(code.contains("checkbox(\"Accept terms\", state.accepted)"));
+        assert!(code.contains(".on_toggle(Message::ToggleAccept)"));
+    }
+
+    #[test]
+    fn test_generate_slider() {
+        let node = LayoutNode::new(WidgetType::Slider {
+            min: 0.0,
+            max: 100.0,
+            value_binding: "volume".to_string(),
+            message_stub: "VolumeChanged".to_string(),
+            attrs: SliderAttrs { width: LengthSpec::Fill },
+        });
+        
+        let code = generate_node(&node, 1);
+        assert!(code.contains("slider(0.0..=100.0, state.volume, Message::VolumeChanged)"));
+    }
+
+    #[test]
+    fn test_generate_container_with_padding() {
+        let mut attrs = ContainerAttrs::default();
+        attrs.padding = PaddingSpec { top: 10.0, right: 10.0, bottom: 10.0, left: 10.0 };
+        
+        let node = LayoutNode::new(WidgetType::Container {
+            child: None,
+            attrs,
+        });
+        
+        let code = generate_node(&node, 1);
+        assert!(code.contains("container("));
+        assert!(code.contains(".padding(10)"));
+    }
+
+    #[test]
+    fn test_generate_container_with_different_padding() {
+        let mut attrs = ContainerAttrs::default();
+        attrs.padding = PaddingSpec { top: 10.0, right: 20.0, bottom: 30.0, left: 40.0 };
+        
+        let node = LayoutNode::new(WidgetType::Container {
+            child: None,
+            attrs,
+        });
+        
+        let code = generate_node(&node, 1);
+        assert!(code.contains(".padding([10, 20, 30, 40])"));
+    }
+
+    #[test]
+    fn test_generate_space() {
+        let node = LayoutNode::new(WidgetType::Space {
+            width: LengthSpec::Fixed(20.0),
+            height: LengthSpec::Fixed(30.0),
+        });
+        
+        let code = generate_node(&node, 1);
+        assert!(code.contains("Space::new(Length::Fixed(20.0), Length::Fixed(30.0))"));
+    }
+
+    #[test]
+    fn test_escape_string_special_chars() {
+        assert_eq!(escape_string("tab\there"), "tab\\there");
+        assert_eq!(escape_string("return\rhere"), "return\\rhere");
+        assert_eq!(escape_string("back\\slash"), "back\\\\slash");
+    }
+
+    #[test]
+    fn test_generate_pick_list() {
+        let node = LayoutNode::new(WidgetType::PickList {
+            options: vec!["Red".to_string(), "Green".to_string(), "Blue".to_string()],
+            selected_binding: "color".to_string(),
+            message_stub: "ColorSelected".to_string(),
+            attrs: crate::model::layout::PickListAttrs::default(),
+        });
+        
+        let code = generate_node(&node, 1);
+        assert!(code.contains("pick_list"));
+        assert!(code.contains("\"Red\", \"Green\", \"Blue\""));
+        assert!(code.contains("state.color"));
+        assert!(code.contains("Message::ColorSelected"));
+    }
 }
+
