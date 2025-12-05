@@ -2,7 +2,7 @@
 
 **Last Updated:** December 4, 2025
 
-## Current Phase: Phase 6 - Canvas / Viewport ✅ COMPLETE
+## Current Phase: Phase 7 - Property Inspector Improvements ✅ COMPLETE
 
 ### Build Status
 - ✅ **Compiles successfully** (`cargo build` passes)
@@ -104,13 +104,61 @@ src/
 
 ### Phase 7: Property Inspector Improvements
 - [x] Dynamic form generation
-- [ ] Length variant picker (Fill, Shrink, Fixed, FillPortion)
-- [ ] Color picker from predefined palette
+- [x] Length variant picker (Fill, Shrink, Fixed, FillPortion)
+- [x] Alignment pickers (X and Y)
+- [x] Color picker from predefined palette
+- [x] Font size editing for Text widgets
 
 ### Phase 8: Polish
 - [ ] Error handling improvements
 - [ ] Performance optimization
 - [ ] Keyboard shortcuts refinement
+
+---
+
+## Phase 7 Completed Features
+
+### 7.1 Length Variant Picker
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Fill/Shrink buttons | ✅ | Toggle buttons for common lengths |
+| Fixed with value input | ✅ | Text input for pixel value |
+| FillPortion with value | ✅ | Text input for portion value |
+| Visual selection state | ✅ | Highlighted active variant |
+| Width and Height pickers | ✅ | Both dimensions supported |
+
+### 7.2 Alignment Pickers
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Align X picker | ✅ | Start/Center/End buttons |
+| Align Y picker | ✅ | Start/Center/End buttons |
+| Visual selection state | ✅ | Highlighted active alignment |
+| Container support | ✅ | Column, Row, Container, Scrollable, Stack |
+
+### 7.3 Color Picker
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Predefined palette | ✅ | 10 colors: Default, White, Black, Red, Green, Blue, Yellow, Orange, Purple, Gray |
+| Color swatch buttons | ✅ | Visual color display |
+| Selection indicator | ✅ | Border highlight on selected |
+| Text widget support | ✅ | Applied to Text color attribute |
+
+### 7.4 Font Size Editing
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Numeric input | ✅ | Text input with parsing |
+| Real-time update | ✅ | Updates on input change |
+| History integration | ✅ | Undo/redo supported |
+
+### 7.5 New Message Handlers
+| Message | Description |
+|---------|-------------|
+| `UpdateWidth` | Set container width (LengthSpec) |
+| `UpdateHeight` | Set container height (LengthSpec) |
+| `UpdateAlignX` | Set horizontal alignment |
+| `UpdateAlignY` | Set vertical alignment |
+| `UpdateFontSize` | Set text font size |
+| `UpdateTextColor` | Set text color (RGBA) |
 
 ---
 

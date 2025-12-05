@@ -5,6 +5,7 @@
 use iced::widget::{button, column, container, horizontal_rule, row, text, vertical_rule};
 use iced::{Element, Length, Subscription, Task};
 
+use crate::model::layout::{AlignmentSpec, LengthSpec};
 use crate::model::{ComponentId, LayoutNode, Project, ProjectConfig};
 use crate::ui::{palette::WidgetKind, Canvas, Inspector, Palette, TreeView};
 
@@ -65,6 +66,14 @@ pub enum Message {
     // Container property updates
     UpdatePadding(ComponentId, f32),
     UpdateSpacing(ComponentId, f32),
+    UpdateWidth(ComponentId, LengthSpec),
+    UpdateHeight(ComponentId, LengthSpec),
+    UpdateAlignX(ComponentId, AlignmentSpec),
+    UpdateAlignY(ComponentId, AlignmentSpec),
+    
+    // Text style updates
+    UpdateFontSize(ComponentId, f32),
+    UpdateTextColor(ComponentId, Option<[f32; 4]>),
     
     // Checkbox property updates
     UpdateCheckboxLabel(ComponentId, String),
@@ -449,6 +458,88 @@ impl App {
                             attrs.spacing = spacing;
                         }
                         _ => {}
+                    }
+                });
+                Task::none()
+            }
+
+            Message::UpdateWidth(id, width) => {
+                self.update_node_property(id, |node| {
+                    match &mut node.widget {
+                        crate::model::layout::WidgetType::Column { attrs, .. }
+                        | crate::model::layout::WidgetType::Row { attrs, .. }
+                        | crate::model::layout::WidgetType::Container { attrs, .. }
+                        | crate::model::layout::WidgetType::Scrollable { attrs, .. }
+                        | crate::model::layout::WidgetType::Stack { attrs, .. } => {
+                            attrs.width = width;
+                        }
+                        _ => {}
+                    }
+                });
+                Task::none()
+            }
+
+            Message::UpdateHeight(id, height) => {
+                self.update_node_property(id, |node| {
+                    match &mut node.widget {
+                        crate::model::layout::WidgetType::Column { attrs, .. }
+                        | crate::model::layout::WidgetType::Row { attrs, .. }
+                        | crate::model::layout::WidgetType::Container { attrs, .. }
+                        | crate::model::layout::WidgetType::Scrollable { attrs, .. }
+                        | crate::model::layout::WidgetType::Stack { attrs, .. } => {
+                            attrs.height = height;
+                        }
+                        _ => {}
+                    }
+                });
+                Task::none()
+            }
+
+            Message::UpdateAlignX(id, align_x) => {
+                self.update_node_property(id, |node| {
+                    match &mut node.widget {
+                        crate::model::layout::WidgetType::Column { attrs, .. }
+                        | crate::model::layout::WidgetType::Row { attrs, .. }
+                        | crate::model::layout::WidgetType::Container { attrs, .. }
+                        | crate::model::layout::WidgetType::Scrollable { attrs, .. }
+                        | crate::model::layout::WidgetType::Stack { attrs, .. } => {
+                            attrs.align_x = align_x;
+                        }
+                        _ => {}
+                    }
+                });
+                Task::none()
+            }
+
+            Message::UpdateAlignY(id, align_y) => {
+                self.update_node_property(id, |node| {
+                    match &mut node.widget {
+                        crate::model::layout::WidgetType::Column { attrs, .. }
+                        | crate::model::layout::WidgetType::Row { attrs, .. }
+                        | crate::model::layout::WidgetType::Container { attrs, .. }
+                        | crate::model::layout::WidgetType::Scrollable { attrs, .. }
+                        | crate::model::layout::WidgetType::Stack { attrs, .. } => {
+                            attrs.align_y = align_y;
+                        }
+                        _ => {}
+                    }
+                });
+                Task::none()
+            }
+
+            Message::UpdateFontSize(id, font_size) => {
+                self.update_node_property(id, |node| {
+                    if let crate::model::layout::WidgetType::Text { attrs, .. } = &mut node.widget {
+                        attrs.font_size = font_size;
+                    }
+                });
+                Task::none()
+            }
+
+            Message::UpdateTextColor(id, color) => {
+                self.update_node_property(id, |node| {
+                    if let crate::model::layout::WidgetType::Text { attrs, .. } = &mut node.widget {
+                        attrs.color = color;
                     }
                 });
                 Task::none()
