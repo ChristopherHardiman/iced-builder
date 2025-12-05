@@ -154,12 +154,19 @@ The builder itself is an Iced application with an IDE-like layout:
 	- If `rustfmt` is not available, emit a warning and write unformatted code.
 
 ## 7. Future Enhancements (Stretch Goals)
+- **Import from Existing Iced Code** (Complexity: Hard):
+	- Parse existing Iced Rust code to extract widget structure and import into the Layout AST.
+	- Would use `syn` crate for Rust AST parsing, targeting simple `column!/row!` macros and builder patterns.
+	- Challenges: Rust's flexible syntax, conditional logic, dynamic state references, and project-specific types.
+	- Feasible subset: Static widget trees without conditionals or loops (~60% coverage).
+	- Full implementation estimate: 1-3 months depending on coverage goals.
 - **Multiple Screens / Routes**:
 	- Support multiple root layouts and generate an enum or routing structure for them.
 - **Theming Support**:
 	- Define themes and style palettes in the builder; export theme configuration alongside layout code.
-- **Import from Generated Code**:
+- **Re-import from Generated Code**:
 	- Parse previously generated layouts back into the AST so they can be re-opened and edited.
+	- Simpler than general import since generated code follows known patterns.
 
 ## 8. Distribution & Releases
 - **Standalone Portable Binary**:

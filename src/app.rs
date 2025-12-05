@@ -2,7 +2,7 @@
 //!
 //! Contains the top-level App struct, Message enum, and update/view functions.
 
-use iced::widget::{column, container, horizontal_rule, row, text, vertical_rule};
+use iced::widget::{button, column, container, horizontal_rule, row, text, vertical_rule};
 use iced::{Element, Length, Subscription, Task};
 
 use crate::model::{ComponentId, LayoutNode, Project, ProjectConfig};
@@ -213,7 +213,13 @@ impl App {
                     }
                     Err(e) => {
                         tracing::error!(target: "iced_builder::app", error = %e, "Failed to open project");
-                        self.status_message = Some(format!("Failed to open project: {}", e));
+                        // Show a shorter message in status bar
+                        let short_msg = if e.to_string().contains("Not an Iced Builder project") {
+                            "Not an Iced Builder project. Use 'New Project' to create one.".to_string()
+                        } else {
+                            format!("Failed to open: {}", e)
+                        };
+                        self.status_message = Some(short_msg);
                     }
                 }
                 Task::none()
@@ -537,6 +543,30 @@ impl App {
             _ => "",
         };
 
+        // Toolbar with file operations
+        let toolbar = container(
+            row![
+                button(text("New Project").size(12))
+                    .on_press(Message::NewProject)
+                    .padding([4, 8]),
+                button(text("Open Project").size(12))
+                    .on_press(Message::OpenProject)
+                    .padding([4, 8]),
+                button(text("Save").size(12))
+                    .on_press(Message::SaveProject)
+                    .padding([4, 8]),
+                button(text("Export Code").size(12))
+                    .on_press(Message::ExportCode)
+                    .padding([4, 8]),
+            ]
+            .spacing(5),
+        )
+        .padding(5)
+        .style(|_theme| container::Style {
+            background: Some(iced::Background::Color(iced::Color::from_rgb(0.2, 0.2, 0.2))),
+            ..Default::default()
+        });
+
         // Status bar
         let status = container(
             text(format!("{}{}{}", status_text, dirty_indicator, history_status))
@@ -555,8 +585,8 @@ impl App {
         ]
         .height(Length::Fill);
 
-        // Full layout with status bar
-        column![main_row, horizontal_rule(1), status].into()
+        // Full layout with toolbar, main content, and status bar
+        column![toolbar, horizontal_rule(1), main_row, horizontal_rule(1), status].into()
     }
 
     /// Handle subscriptions (keyboard shortcuts).

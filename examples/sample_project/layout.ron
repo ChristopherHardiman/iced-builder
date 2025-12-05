@@ -1,106 +1,107 @@
 // Sample layout file for Iced Builder
 // This demonstrates the RON format for layout documents.
 LayoutDocument(
+    version: 1,
     name: "main_layout",
     root: LayoutNode(
-        id: "550e8400-e29b-41d4-a716-446655440000",
+        id: ComponentId("550e8400-e29b-41d4-a716-446655440000"),
         widget: Column(
             children: [
                 LayoutNode(
-                    id: "550e8400-e29b-41d4-a716-446655440001",
+                    id: ComponentId("550e8400-e29b-41d4-a716-446655440001"),
                     widget: Text(
                         content: "Hello, Iced Builder!",
                         attrs: TextAttrs(
-                            size: Some(24.0),
+                            font_size: 24.0,
                             color: None,
-                            font_weight: None,
-                            horizontal_alignment: None,
-                            vertical_alignment: None,
+                            horizontal_alignment: Center,
                         ),
                     ),
                 ),
                 LayoutNode(
-                    id: "550e8400-e29b-41d4-a716-446655440002",
+                    id: ComponentId("550e8400-e29b-41d4-a716-446655440002"),
                     widget: Row(
                         children: [
                             LayoutNode(
-                                id: "550e8400-e29b-41d4-a716-446655440003",
+                                id: ComponentId("550e8400-e29b-41d4-a716-446655440003"),
                                 widget: Button(
                                     label: "Click Me",
                                     message_stub: "ButtonClicked",
                                     attrs: ButtonAttrs(
-                                        style: None,
+                                        width: Shrink,
+                                        height: Shrink,
                                     ),
                                 ),
                             ),
                             LayoutNode(
-                                id: "550e8400-e29b-41d4-a716-446655440004",
+                                id: ComponentId("550e8400-e29b-41d4-a716-446655440004"),
                                 widget: Space(
                                     width: Fixed(10.0),
                                     height: Fixed(1.0),
                                 ),
                             ),
                             LayoutNode(
-                                id: "550e8400-e29b-41d4-a716-446655440005",
+                                id: ComponentId("550e8400-e29b-41d4-a716-446655440005"),
                                 widget: Button(
                                     label: "Cancel",
                                     message_stub: "CancelPressed",
                                     attrs: ButtonAttrs(
-                                        style: Some("secondary"),
+                                        width: Shrink,
+                                        height: Shrink,
                                     ),
                                 ),
                             ),
                         ],
                         attrs: ContainerAttrs(
-                            width: None,
-                            height: None,
-                            max_width: None,
-                            max_height: None,
-                            padding: None,
-                            spacing: Some(10.0),
-                            align_x: None,
-                            align_y: None,
-                            clip: false,
+                            padding: PaddingSpec(
+                                top: 0.0,
+                                right: 0.0,
+                                bottom: 0.0,
+                                left: 0.0,
+                            ),
+                            spacing: 10.0,
+                            align_x: Start,
+                            align_y: Start,
+                            width: Shrink,
+                            height: Shrink,
                         ),
                     ),
                 ),
                 LayoutNode(
-                    id: "550e8400-e29b-41d4-a716-446655440006",
+                    id: ComponentId("550e8400-e29b-41d4-a716-446655440006"),
                     widget: TextInput(
                         placeholder: "Enter your name...",
                         value_binding: "name_input",
                         message_stub: "NameChanged",
                         attrs: InputAttrs(
-                            width: Some(Fill),
-                            padding: None,
-                            size: None,
-                            password: false,
+                            width: Fill,
                         ),
                     ),
                 ),
                 LayoutNode(
-                    id: "550e8400-e29b-41d4-a716-446655440007",
+                    id: ComponentId("550e8400-e29b-41d4-a716-446655440007"),
                     widget: Checkbox(
                         label: "Accept terms and conditions",
                         checked_binding: "terms_accepted",
                         message_stub: "TermsToggled",
                         attrs: CheckboxAttrs(
-                            size: None,
-                            spacing: None,
+                            spacing: 8.0,
                         ),
                     ),
                 ),
             ],
             attrs: ContainerAttrs(
-                width: Some(Fill),
-                height: Some(Fill),
-                max_width: Some(600.0),
-                max_height: None,
-                padding: Some(All(20.0)),
-                spacing: Some(15.0),
-                align_x: Some(Center),
-                align_y: None,
-                clip: false,
+                padding: PaddingSpec(
+                    top: 20.0,
+                    right: 20.0,
+                    bottom: 20.0,
+                    left: 20.0,
+                ),
+                spacing: 15.0,
+                align_x: Center,
+                align_y: Start,
+                width: Fill,
+                height: Fill,
             ),
         ),
     ),

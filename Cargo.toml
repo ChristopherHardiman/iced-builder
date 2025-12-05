@@ -1,6 +1,6 @@
 [package]
 name = "iced-builder"
-version = "0.0.7"
+version = "0.0.8"
 edition = "2021"
 description = "A visual GUI builder for Iced applications"
 license = "MIT"

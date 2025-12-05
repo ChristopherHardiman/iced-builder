@@ -18,7 +18,7 @@ pub enum ProjectError {
     #[error("Failed to parse config file: {0}")]
     ConfigParse(#[from] toml::de::Error),
 
-    #[error("Config file not found: {0}")]
+    #[error("Not an Iced Builder project: {0}\n\nThis folder doesn't contain an 'iced_builder.toml' config file.\nUse 'New Project' to create a new Iced Builder project, or select an existing Iced Builder project folder.")]
     ConfigNotFound(PathBuf),
 
     #[error("Layout file not found: {0}")]

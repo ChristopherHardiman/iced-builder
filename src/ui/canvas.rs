@@ -4,7 +4,7 @@
 //! for click interception and selection.
 
 use iced::widget::{
-    button, center, checkbox, column, container, mouse_area, row, scrollable, slider, text,
+    button, center, checkbox, column, container, mouse_area, row, scrollable, slider, stack, text,
     text_input, Space,
 };
 use iced::{Border, Color, Element, Length};
@@ -24,7 +24,8 @@ impl Canvas {
         root: &'a LayoutNode,
         selected_id: Option<ComponentId>,
     ) -> Element<'a, Message> {
-        let content = Self::render_node(root, selected_id);
+        // Render the root node, but override height to Shrink for scrollable compatibility
+        let content = Self::render_node_for_canvas(root, selected_id, true);
 
         container(scrollable(container(content).padding(20).width(Length::Fill)))
             .width(Length::Fill)
@@ -52,6 +53,36 @@ impl Canvas {
         .into()
     }
 
+    /// Render a node for the canvas, with special handling for the root node.
+    /// The root node's height is forced to Shrink to work inside a scrollable.
+    fn render_node_for_canvas<'a>(
+        node: &'a LayoutNode,
+        selected_id: Option<ComponentId>,
+        is_root: bool,
+    ) -> Element<'a, Message> {
+        let is_selected = selected_id == Some(node.id);
+        let widget = Self::render_widget_for_canvas(node, selected_id, is_root);
+
+        // Wrap in mouse_area for selection
+        let selectable = mouse_area(widget).on_press(Message::SelectComponent(node.id));
+
+        // Apply selection styling if selected
+        if is_selected {
+            container(selectable)
+                .style(|_theme| container::Style {
+                    border: Border {
+                        color: Color::from_rgb(0.2, 0.6, 1.0),
+                        width: 2.0,
+                        radius: 4.0.into(),
+                    },
+                    ..Default::default()
+                })
+                .into()
+        } else {
+            selectable.into()
+        }
+    }
+
     /// Recursively render a layout node.
     fn render_node<'a>(node: &'a LayoutNode, selected_id: Option<ComponentId>) -> Element<'a, Message> {
         let is_selected = selected_id == Some(node.id);
@@ -77,6 +108,61 @@ impl Canvas {
         }
     }
 
+    /// Render widget for canvas root - forces height to Shrink for scrollable compatibility.
+    fn render_widget_for_canvas<'a>(
+        node: &'a LayoutNode,
+        selected_id: Option<ComponentId>,
+        is_root: bool,
+    ) -> Element<'a, Message> {
+        match &node.widget {
+            WidgetType::Column { children, attrs } => {
+                let mut col = column![];
+                for child in children {
+                    col = col.push(Self::render_node(child, selected_id));
+                }
+                // For root node, use Shrink height to work inside scrollable
+                let height = if is_root {
+                    Length::Shrink
+                } else {
+                    Self::convert_length(attrs.height)
+                };
+                col.spacing(attrs.spacing)
+                    .padding(iced::Padding::new(attrs.padding.top)
+                        .right(attrs.padding.right)
+                        .bottom(attrs.padding.bottom)
+                        .left(attrs.padding.left))
+                    .width(Self::convert_length(attrs.width))
+                    .height(height)
+                    .align_x(Self::convert_horizontal_alignment(attrs.align_x))
+                    .into()
+            }
+
+            WidgetType::Row { children, attrs } => {
+                let mut r = row![];
+                for child in children {
+                    r = r.push(Self::render_node(child, selected_id));
+                }
+                let height = if is_root {
+                    Length::Shrink
+                } else {
+                    Self::convert_length(attrs.height)
+                };
+                r.spacing(attrs.spacing)
+                    .padding(iced::Padding::new(attrs.padding.top)
+                        .right(attrs.padding.right)
+                        .bottom(attrs.padding.bottom)
+                        .left(attrs.padding.left))
+                    .width(Self::convert_length(attrs.width))
+                    .height(height)
+                    .align_y(Self::convert_vertical_alignment(attrs.align_y))
+                    .into()
+            }
+
+            // For other widget types, delegate to render_widget
+            _ => Self::render_widget(node, selected_id),
+        }
+    }
+
     /// Render the actual widget based on its type.
     fn render_widget<'a>(node: &'a LayoutNode, selected_id: Option<ComponentId>) -> Element<'a, Message> {
         match &node.widget {
@@ -92,6 +178,7 @@ impl Canvas {
                         .left(attrs.padding.left))
                     .width(Self::convert_length(attrs.width))
                     .height(Self::convert_length(attrs.height))
+                    .align_x(Self::convert_horizontal_alignment(attrs.align_x))
                     .into()
             }
 
@@ -107,6 +194,7 @@ impl Canvas {
                         .left(attrs.padding.left))
                     .width(Self::convert_length(attrs.width))
                     .height(Self::convert_length(attrs.height))
+                    .align_y(Self::convert_vertical_alignment(attrs.align_y))
                     .into()
             }
 
@@ -122,6 +210,8 @@ impl Canvas {
                         .left(attrs.padding.left))
                     .width(Self::convert_length(attrs.width))
                     .height(Self::convert_length(attrs.height))
+                    .align_x(Self::convert_horizontal_alignment(attrs.align_x))
+                    .align_y(Self::convert_vertical_alignment(attrs.align_y))
                     .into()
             }
 
@@ -137,12 +227,14 @@ impl Canvas {
             }
 
             WidgetType::Stack { children, attrs } => {
-                // For now, just render children in a column (Stack requires more complex handling)
-                let mut col = column![];
-                for child in children {
-                    col = col.push(Self::render_node(child, selected_id));
-                }
-                col.width(Self::convert_length(attrs.width))
+                // Use Iced's stack widget for overlays
+                let layers: Vec<Element<'a, Message>> = children
+                    .iter()
+                    .map(|child| Self::render_node(child, selected_id))
+                    .collect();
+                
+                stack(layers)
+                    .width(Self::convert_length(attrs.width))
                     .height(Self::convert_length(attrs.height))
                     .into()
             }
@@ -222,6 +314,24 @@ impl Canvas {
             AlignmentSpec::Start => iced::Alignment::Start,
             AlignmentSpec::Center => iced::Alignment::Center,
             AlignmentSpec::End => iced::Alignment::End,
+        }
+    }
+
+    /// Convert AlignmentSpec to Iced Horizontal alignment.
+    fn convert_horizontal_alignment(spec: AlignmentSpec) -> iced::alignment::Horizontal {
+        match spec {
+            AlignmentSpec::Start => iced::alignment::Horizontal::Left,
+            AlignmentSpec::Center => iced::alignment::Horizontal::Center,
+            AlignmentSpec::End => iced::alignment::Horizontal::Right,
+        }
+    }
+
+    /// Convert AlignmentSpec to Iced Vertical alignment.
+    fn convert_vertical_alignment(spec: AlignmentSpec) -> iced::alignment::Vertical {
+        match spec {
+            AlignmentSpec::Start => iced::alignment::Vertical::Top,
+            AlignmentSpec::Center => iced::alignment::Vertical::Center,
+            AlignmentSpec::End => iced::alignment::Vertical::Bottom,
         }
     }
 }

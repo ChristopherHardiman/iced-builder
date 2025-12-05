@@ -2,7 +2,7 @@
 
 **Last Updated:** December 4, 2025
 
-## Current Phase: Phase 5 - Widget Palette ✅ COMPLETE
+## Current Phase: Phase 6 - Canvas / Viewport ✅ COMPLETE
 
 ### Build Status
 - ✅ **Compiles successfully** (`cargo build` passes)
@@ -54,6 +54,7 @@ ICED_BUILDER_LOG=iced_builder::codegen=trace cargo run
 | Status bar | ✅ | Shows status messages |
 | New Project (Ctrl+N) | ✅ | Creates empty Column layout |
 | Keyboard shortcuts | ✅ | Ctrl+N, Ctrl+S, Ctrl+Z, Ctrl+Y, Delete, Escape |
+| Toolbar buttons | ✅ | New Project, Open Project, Save, Export Code |
 
 ---
 
@@ -101,14 +102,51 @@ src/
 
 ## Upcoming Work
 
-### Phase 6: Code Generation Improvements
-- [x] Basic code generation implemented
-- [ ] Real-time code preview panel
+### Phase 7: Property Inspector Improvements
+- [x] Dynamic form generation
+- [ ] Length variant picker (Fill, Shrink, Fixed, FillPortion)
+- [ ] Color picker from predefined palette
 
-### Phase 7: Polish
+### Phase 8: Polish
 - [ ] Error handling improvements
 - [ ] Performance optimization
 - [ ] Keyboard shortcuts refinement
+
+---
+
+## Phase 6 Completed Features
+
+### 6.1 Canvas Rendering
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Recursive `render_node` function | ✅ | Renders layout tree to Iced widgets |
+| All 12 widget types | ✅ | Column, Row, Container, Scrollable, Stack, Text, Button, TextInput, Checkbox, Slider, PickList, Space |
+| MouseArea selection | ✅ | All widgets wrapped for click-to-select |
+| Selection border | ✅ | Blue border (2px, 4px radius) on selected |
+| Scrollable viewport | ✅ | Large layouts can scroll |
+| Root height fix | ✅ | Root node uses Shrink height for scrollable compatibility |
+| Design mode behavior | ✅ | Buttons select, inputs read-only |
+
+### 6.2 Alignment Support
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Column align_x | ✅ | Horizontal alignment of children |
+| Row align_y | ✅ | Vertical alignment of children |
+| Container align_x/y | ✅ | Both horizontal and vertical |
+| AlignmentSpec conversion | ✅ | Start/Center/End to Iced alignment |
+
+### 6.3 Stack Widget
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Proper stack rendering | ✅ | Uses Iced's `stack` widget for overlays |
+| Layer support | ✅ | Children rendered as stacked layers |
+
+### 6.4 Visual Styling
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Dark canvas background | ✅ | RGB(0.15, 0.15, 0.15) |
+| Empty placeholder text | ✅ | Gray text for empty containers |
+| PickList styling | ✅ | Border container for design mode |
 
 ---
 
