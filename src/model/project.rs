@@ -166,6 +166,9 @@ impl Project {
                 config::ConfigError::SerializeError(_) => {
                     ProjectError::LayoutParse("Config serialize error".to_string())
                 }
+                config::ConfigError::BackupError(s) => {
+                    ProjectError::LayoutParse(format!("Config backup error: {}", s))
+                }
             })?;
 
         tracing::debug!(target: "iced_builder::io", ?config, "Config loaded");

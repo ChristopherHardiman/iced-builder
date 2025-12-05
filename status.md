@@ -2,11 +2,11 @@
 
 **Last Updated:** December 4, 2025
 
-## Current Phase: Phase 9 - Code Generation ✅ COMPLETE
+## Current Phase: Phase 10 - File I/O ✅ COMPLETE
 
 ### Build Status
 - ✅ **Compiles successfully** (`cargo build` passes)
-- ✅ **All tests pass** (44 tests)
+- ✅ **All tests pass** (49 tests)
 - ✅ **Application launches** without panics
 - ✅ **Logging system active** (tracing-based)
 - ⚠️ Dead code warnings (expected - scaffolding for future phases)
@@ -102,12 +102,66 @@ src/
 
 ## Upcoming Work
 
-### Phase 10+: Future Enhancements
-- [ ] File I/O improvements (load/save dialogs)
+### Phase 11+: Future Enhancements
+- [ ] Keyboard shortcuts & UX polish refinements
+- [ ] Preview mode (stretch goal)
 - [ ] Import existing Iced code
 - [ ] Advanced themes
 - [ ] Custom widget library
 - [ ] Drag-and-drop reordering
+
+---
+
+## Phase 10 Completed Features
+
+### 10.1 Layout File Enhancements
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Improved load_layout | ✅ | With file existence check and tracing |
+| save_layout_with_backup | ✅ | Optional backup creation before overwrite |
+| Backup file creation | ✅ | Creates `.ron.bak` or `.json.bak` files |
+| Parent directory creation | ✅ | Auto-creates directories if needed |
+| Format detection | ✅ | RON and JSON by extension |
+| NotFound error type | ✅ | Explicit error for missing files |
+| BackupError type | ✅ | Error handling for backup failures |
+
+### 10.2 Config File Enhancements
+| Feature | Status | Notes |
+|---------|--------|-------|
+| save_config_with_backup | ✅ | Optional backup before overwrite |
+| CONFIG_FILENAME constant | ✅ | Centralized filename definition |
+| config_path helper | ✅ | Get config path for directory |
+| is_valid_project | ✅ | Check if directory has config |
+| BackupError handling | ✅ | Proper error propagation |
+
+### 10.3 Helper Functions Added
+| Function | Module | Description |
+|----------|--------|-------------|
+| `find_layout_files(dir)` | layout_file | Find all .ron/.json in directory |
+| `default_layout_path(dir)` | layout_file | Get default layout.ron path |
+| `LayoutFormat::extension()` | layout_file | Get file extension for format |
+| `LayoutFormat::name()` | layout_file | Get display name for format |
+| `config_path(dir)` | config | Get iced_builder.toml path |
+| `is_valid_project(dir)` | config | Check for valid project |
+
+### 10.4 Tracing Integration
+| Log Point | Target | Level |
+|-----------|--------|-------|
+| Loading layout file | `iced_builder::io` | info |
+| Saving layout file | `iced_builder::io` | info |
+| Loading config file | `iced_builder::io` | info |
+| Saving config file | `iced_builder::io` | info |
+| Creating backup | `iced_builder::io` | debug |
+| Format parsing | `iced_builder::io` | debug |
+
+### 10.5 New Tests Added
+| Test | Description |
+|------|-------------|
+| `test_format_extension` | LayoutFormat extension method |
+| `test_format_name` | LayoutFormat display name |
+| `test_default_layout_path` | Default path generation |
+| `test_config_filename` | CONFIG_FILENAME constant |
+| `test_config_path` | Config path generation |
 
 ---
 

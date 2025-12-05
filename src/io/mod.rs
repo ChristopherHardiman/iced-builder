@@ -5,8 +5,14 @@
 pub mod config;
 pub mod layout_file;
 
-// Re-exports (unused in Phase 0 but available for future phases)
+// Re-exports for convenience
 #[allow(unused_imports)]
-pub use config::load_config;
+pub use config::{
+    config_path, find_config, is_valid_project, load_config, save_config, ConfigError,
+    CONFIG_FILENAME,
+};
 #[allow(unused_imports)]
-pub use layout_file::{load_layout, save_layout};
+pub use layout_file::{
+    default_layout_path, find_layout_files, load_layout, save_layout, LayoutFileError,
+    LayoutFormat,
+};
