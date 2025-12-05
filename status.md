@@ -2,11 +2,11 @@
 
 **Last Updated:** December 4, 2025
 
-## Current Phase: Phase 8 - Polish ✅ COMPLETE
+## Current Phase: Phase 9 - Code Generation ✅ COMPLETE
 
 ### Build Status
 - ✅ **Compiles successfully** (`cargo build` passes)
-- ✅ **All tests pass** (39 tests)
+- ✅ **All tests pass** (44 tests)
 - ✅ **Application launches** without panics
 - ✅ **Logging system active** (tracing-based)
 - ⚠️ Dead code warnings (expected - scaffolding for future phases)
@@ -102,11 +102,59 @@ src/
 
 ## Upcoming Work
 
-### Phase 9+: Future Enhancements
+### Phase 10+: Future Enhancements
+- [ ] File I/O improvements (load/save dialogs)
 - [ ] Import existing Iced code
 - [ ] Advanced themes
 - [ ] Custom widget library
 - [ ] Drag-and-drop reordering
+
+---
+
+## Phase 9 Completed Features
+
+### 9.1 Code Generator Enhancements
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Stack widget support | ✅ | Uses `stack![]` macro |
+| Column align_x | ✅ | Generates `.align_x(Alignment::...)` |
+| Row align_y | ✅ | Generates `.align_y(Alignment::...)` |
+| Container align_x/y | ✅ | Both alignments supported |
+| All 12 widget types | ✅ | Complete AST → code mapping |
+
+### 9.2 Generated Code Structure
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Header comment | ✅ | Auto-generation warning |
+| Widget imports | ✅ | Includes `stack` widget |
+| User type imports | ✅ | From config message_type/state_type |
+| View function | ✅ | `pub fn view(state: &State) -> Element<Message>` |
+
+### 9.3 Binding Resolution
+| Binding Type | Generated Code |
+|--------------|----------------|
+| `value_binding: "username"` | `&state.username` |
+| `message_stub: "Submit"` | `Message::Submit` |
+| TextInput on_input | `Message::FieldNameChanged` |
+| Checkbox on_toggle | `Message::CheckboxToggled` |
+| Slider on_change | `Message::SliderChanged` |
+
+### 9.4 Formatting Integration
+| Feature | Status | Notes |
+|---------|--------|-------|
+| rustfmt invocation | ✅ | Via `std::process::Command` |
+| Graceful fallback | ✅ | Returns unformatted if rustfmt unavailable |
+| Format config option | ✅ | `format_output` in iced_builder.toml |
+| Safe file overwrite | ✅ | Creates `.bak` before writing |
+
+### 9.5 New Tests Added
+| Test | Description |
+|------|-------------|
+| `test_alignment_to_code` | AlignmentSpec → Rust code conversion |
+| `test_generate_column_with_alignment` | Column with align_x |
+| `test_generate_row_with_alignment` | Row with align_y |
+| `test_generate_stack` | Stack widget with children |
+| `test_generate_code_includes_stack_import` | Verifies stack in imports |
 
 ---
 

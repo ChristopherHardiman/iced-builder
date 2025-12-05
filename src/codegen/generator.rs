@@ -3,7 +3,7 @@
 //! Generates a `view` function that can be used in an Iced application.
 
 use crate::model::{
-    layout::{LengthSpec, PaddingSpec, WidgetType},
+    layout::{AlignmentSpec, LengthSpec, PaddingSpec, WidgetType},
     LayoutDocument, LayoutNode, ProjectConfig,
 };
 use std::fmt::Write;
@@ -22,7 +22,7 @@ pub fn generate_code(layout: &LayoutDocument, config: &ProjectConfig) -> String 
     // Imports
     writeln!(output, "use iced::widget::{{").unwrap();
     writeln!(output, "    button, checkbox, column, container, pick_list, row,").unwrap();
-    writeln!(output, "    scrollable, slider, text, text_input, Space,").unwrap();
+    writeln!(output, "    scrollable, slider, stack, text, text_input, Space,").unwrap();
     writeln!(output, "}};").unwrap();
     writeln!(output, "use iced::{{Alignment, Color, Element, Length}};").unwrap();
     writeln!(output).unwrap();
@@ -64,11 +64,11 @@ fn generate_node(node: &LayoutNode, indent: usize) -> String {
 
     match &node.widget {
         WidgetType::Column { children, attrs } => {
-            generate_multi_child_container("column", children, attrs, indent)
+            generate_column(children, attrs, indent)
         }
 
         WidgetType::Row { children, attrs } => {
-            generate_multi_child_container("row", children, attrs, indent)
+            generate_row(children, attrs, indent)
         }
 
         WidgetType::Container { child, attrs } => {
@@ -79,6 +79,13 @@ fn generate_node(node: &LayoutNode, indent: usize) -> String {
 
             let mut code = format!("{}container(\n{}\n{})", indent_str, child_code, indent_str);
             code = append_container_attrs(&code, attrs, indent);
+            // Add alignment for container
+            if attrs.align_x != AlignmentSpec::Start {
+                code = format!("{}.align_x({})", code, alignment_to_code(attrs.align_x));
+            }
+            if attrs.align_y != AlignmentSpec::Start {
+                code = format!("{}.align_y({})", code, alignment_to_code(attrs.align_y));
+            }
             format!("{}.into()", code)
         }
 
@@ -94,8 +101,7 @@ fn generate_node(node: &LayoutNode, indent: usize) -> String {
         }
 
         WidgetType::Stack { children, attrs } => {
-            // Stack is similar to column/row but uses stack! macro when available
-            generate_multi_child_container("column", children, attrs, indent)
+            generate_stack(children, attrs, indent)
         }
 
         WidgetType::Text { content, attrs } => {
@@ -205,34 +211,103 @@ fn generate_node(node: &LayoutNode, indent: usize) -> String {
     }
 }
 
-/// Generate code for column/row containers.
-fn generate_multi_child_container(
-    widget_name: &str,
+/// Generate code for column containers with align_x support.
+fn generate_column(
     children: &[LayoutNode],
     attrs: &crate::model::layout::ContainerAttrs,
     indent: usize,
 ) -> String {
     let indent_str = "    ".repeat(indent);
 
-    if children.is_empty() {
-        let mut code = format!("{}{}![]", indent_str, widget_name);
-        code = append_container_attrs(&code, attrs, indent);
-        return format!("{}.into()", code);
-    }
-
-    let mut code = format!("{}{}![\n", indent_str, widget_name);
-    for (i, child) in children.iter().enumerate() {
-        let child_code = generate_node(child, indent + 1);
-        code.push_str(&child_code);
-        if i < children.len() - 1 {
-            code.push_str(",\n");
-        } else {
-            code.push('\n');
+    let mut code = if children.is_empty() {
+        format!("{}column![]", indent_str)
+    } else {
+        let mut c = format!("{}column![\n", indent_str);
+        for (i, child) in children.iter().enumerate() {
+            let child_code = generate_node(child, indent + 1);
+            c.push_str(&child_code);
+            if i < children.len() - 1 {
+                c.push_str(",\n");
+            } else {
+                c.push('\n');
+            }
         }
-    }
-    code.push_str(&format!("{}]", indent_str));
+        c.push_str(&format!("{}]", indent_str));
+        c
+    };
 
     code = append_container_attrs(&code, attrs, indent);
+    
+    // Column uses align_x for horizontal alignment of children
+    if attrs.align_x != AlignmentSpec::Start {
+        code = format!("{}.align_x({})", code, alignment_to_code(attrs.align_x));
+    }
+    
+    format!("{}.into()", code)
+}
+
+/// Generate code for row containers with align_y support.
+fn generate_row(
+    children: &[LayoutNode],
+    attrs: &crate::model::layout::ContainerAttrs,
+    indent: usize,
+) -> String {
+    let indent_str = "    ".repeat(indent);
+
+    let mut code = if children.is_empty() {
+        format!("{}row![]", indent_str)
+    } else {
+        let mut c = format!("{}row![\n", indent_str);
+        for (i, child) in children.iter().enumerate() {
+            let child_code = generate_node(child, indent + 1);
+            c.push_str(&child_code);
+            if i < children.len() - 1 {
+                c.push_str(",\n");
+            } else {
+                c.push('\n');
+            }
+        }
+        c.push_str(&format!("{}]", indent_str));
+        c
+    };
+
+    code = append_container_attrs(&code, attrs, indent);
+    
+    // Row uses align_y for vertical alignment of children
+    if attrs.align_y != AlignmentSpec::Start {
+        code = format!("{}.align_y({})", code, alignment_to_code(attrs.align_y));
+    }
+    
+    format!("{}.into()", code)
+}
+
+/// Generate code for stack containers.
+fn generate_stack(
+    children: &[LayoutNode],
+    attrs: &crate::model::layout::ContainerAttrs,
+    indent: usize,
+) -> String {
+    let indent_str = "    ".repeat(indent);
+
+    let mut code = if children.is_empty() {
+        format!("{}stack![]", indent_str)
+    } else {
+        let mut c = format!("{}stack![\n", indent_str);
+        for (i, child) in children.iter().enumerate() {
+            let child_code = generate_node(child, indent + 1);
+            c.push_str(&child_code);
+            if i < children.len() - 1 {
+                c.push_str(",\n");
+            } else {
+                c.push('\n');
+            }
+        }
+        c.push_str(&format!("{}]", indent_str));
+        c
+    };
+
+    code = append_length_attrs(&code, attrs.width, attrs.height);
+    
     format!("{}.into()", code)
 }
 
@@ -292,6 +367,15 @@ fn length_to_code(length: LengthSpec) -> String {
     }
 }
 
+/// Convert an AlignmentSpec to Rust code.
+fn alignment_to_code(alignment: AlignmentSpec) -> String {
+    match alignment {
+        AlignmentSpec::Start => "Alignment::Start".to_string(),
+        AlignmentSpec::Center => "Alignment::Center".to_string(),
+        AlignmentSpec::End => "Alignment::End".to_string(),
+    }
+}
+
 /// Escape a string for use in Rust code.
 fn escape_string(s: &str) -> String {
     s.replace('\\', "\\\\")
@@ -304,6 +388,7 @@ fn escape_string(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::layout::{ContainerAttrs, TextAttrs};
 
     #[test]
     fn test_escape_string() {
@@ -318,5 +403,67 @@ mod tests {
         assert_eq!(length_to_code(LengthSpec::Shrink), "Length::Shrink");
         assert_eq!(length_to_code(LengthSpec::FillPortion(2)), "Length::FillPortion(2)");
         assert_eq!(length_to_code(LengthSpec::Fixed(100.0)), "Length::Fixed(100.0)");
+    }
+
+    #[test]
+    fn test_alignment_to_code() {
+        assert_eq!(alignment_to_code(AlignmentSpec::Start), "Alignment::Start");
+        assert_eq!(alignment_to_code(AlignmentSpec::Center), "Alignment::Center");
+        assert_eq!(alignment_to_code(AlignmentSpec::End), "Alignment::End");
+    }
+
+    #[test]
+    fn test_generate_column_with_alignment() {
+        let mut attrs = ContainerAttrs::default();
+        attrs.align_x = AlignmentSpec::Center;
+        
+        let code = generate_column(&[], &attrs, 1);
+        assert!(code.contains("column![]"));
+        assert!(code.contains(".align_x(Alignment::Center)"));
+        assert!(code.contains(".into()"));
+    }
+
+    #[test]
+    fn test_generate_row_with_alignment() {
+        let mut attrs = ContainerAttrs::default();
+        attrs.align_y = AlignmentSpec::End;
+        
+        let code = generate_row(&[], &attrs, 1);
+        assert!(code.contains("row![]"));
+        assert!(code.contains(".align_y(Alignment::End)"));
+        assert!(code.contains(".into()"));
+    }
+
+    #[test]
+    fn test_generate_stack() {
+        let children = vec![
+            LayoutNode::new(WidgetType::Text {
+                content: "Layer 1".to_string(),
+                attrs: TextAttrs::default(),
+            }),
+            LayoutNode::new(WidgetType::Text {
+                content: "Layer 2".to_string(),
+                attrs: TextAttrs::default(),
+            }),
+        ];
+        
+        let attrs = ContainerAttrs::default();
+        let code = generate_stack(&children, &attrs, 1);
+        
+        assert!(code.contains("stack!["));
+        assert!(code.contains("Layer 1"));
+        assert!(code.contains("Layer 2"));
+        assert!(code.contains(".into()"));
+    }
+
+    #[test]
+    fn test_generate_code_includes_stack_import() {
+        let layout = LayoutDocument::default();
+        let config = ProjectConfig::default();
+        
+        let code = generate_code(&layout, &config);
+        
+        assert!(code.contains("stack"));
+        assert!(code.contains("use iced::widget::{"));
     }
 }
